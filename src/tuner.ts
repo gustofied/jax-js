@@ -335,11 +335,10 @@ export function tuneWebgpu(kernel: Kernel): TuneResult {
     reduction.op === AluOp.Add &&
     reduction.dtype === DType.Float32 &&
     groupCandidateHasContiguousInputs &&
-    prod(dim.st.shape.slice(0, dim.groups)) < 4096 &&
     prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512
   ) {
     const axis = dim.reduce;
-    let amount = 16;
+    let amount = 32;
     while (amount > 1 && dim.st.shape[axis] % amount !== 0) amount /= 2;
     if (amount > 1) dim.applyGroup(axis, amount);
   }

@@ -2701,9 +2701,9 @@ function tuneWebgpu(kernel) {
 	const groupCandidateHasContiguousInputs = sts.map((st) => st.compose(dim.st)).every((st) => {
 		return !st.lastStrides.slice(0, dim.groups).some((stride) => stride !== 0) || Math.abs(st.lastStrides[dim.reduce]) <= 1;
 	});
-	if (reduction.op === "Add" && reduction.dtype === "float32" && groupCandidateHasContiguousInputs && prod(dim.st.shape.slice(0, dim.groups)) < 4096 && prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512) {
+	if (reduction.op === "Add" && reduction.dtype === "float32" && groupCandidateHasContiguousInputs && prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512) {
 		const axis = dim.reduce;
-		let amount = 16;
+		let amount = 32;
 		while (amount > 1 && dim.st.shape[axis] % amount !== 0) amount /= 2;
 		if (amount > 1) dim.applyGroup(axis, amount);
 	}
@@ -6002,7 +6002,7 @@ async function createBackend(device) {
 		if (!navigator.gpu) return null;
 		const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
 		if (!adapter) return null;
-		const { WebGPUBackend } = await Promise.resolve().then(() => require("./webgpu-CgGbdDg-.cjs"));
+		const { WebGPUBackend } = await Promise.resolve().then(() => require("./webgpu-oE0UxWnG.cjs"));
 		const importantLimits = [
 			"maxBufferSize",
 			"maxComputeInvocationsPerWorkgroup",
@@ -6015,7 +6015,11 @@ async function createBackend(device) {
 			"maxStorageBuffersPerShaderStage",
 			"maxStorageTexturesPerShaderStage"
 		];
-		const requestedFeatures = ["shader-f16", "timestamp-query"];
+		const requestedFeatures = [
+			"shader-f16",
+			"timestamp-query",
+			"subgroups"
+		];
 		try {
 			return new WebGPUBackend(await adapter.requestDevice({
 				requiredLimits: Object.fromEntries(importantLimits.map((limit) => [limit, adapter.limits[limit]])),
@@ -6037,7 +6041,7 @@ async function createBackend(device) {
 			failIfMajorPerformanceCaveat: true
 		});
 		if (!gl) return null;
-		const { WebGLBackend } = await Promise.resolve().then(() => require("./webgl-C17yO5Il.cjs"));
+		const { WebGLBackend } = await Promise.resolve().then(() => require("./webgl-BQtYM1-M.cjs"));
 		return new WebGLBackend(gl);
 	} else throw new Error(`Backend not found: ${device}`);
 }

@@ -370,9 +370,17 @@ function pipelineSource(device: GPUDevice, kernel: Kernel): ShaderInfo {
   }
 
   const { nargs, reduction: re } = kernel;
+  const groupCount = re ? (tune.size.groups ?? 1) : 1;
+  const groupedReduction = re && groupCount > 1;
+  const subgroupReduction =
+    groupedReduction &&
+    re.op === AluOp.Add &&
+    re.dtype === DType.Float32 &&
+    device.features.has("subgroups");
   const args = Array.from({ length: nargs }, (_, i) => `in${i}`);
 
   const wb = new WgslBuilder();
+  if (subgroupReduction) wb.emit("enable subgroups;");
   wb.emitPreamble(device, [tune.exp, tune.epilogue]);
 
   const usedArgs: (DType | null)[] = Array.from({ length: nargs }, () => null);
@@ -398,8 +406,6 @@ function pipelineSource(device: GPUDevice, kernel: Kernel): ShaderInfo {
     `@group(0) @binding(${nargs}) var<storage, read_write> result : array<${resultTy}>;`,
   );
 
-  const groupCount = re ? (tune.size.groups ?? 1) : 1;
-  const groupedReduction = re && groupCount > 1;
   if (groupedReduction && tune.threadCount % groupCount !== 0) {
     throw new Error("WebGPU grouped reduction has invalid thread count");
   }
@@ -433,6 +439,12 @@ function pipelineSource(device: GPUDevice, kernel: Kernel): ShaderInfo {
       wb.pushIndent,
       "@builtin(local_invocation_id) lid : vec3<u32>,",
       "@builtin(workgroup_id) wg_id : vec3<u32>,",
+      ...(subgroupReduction
+        ? [
+            "@builtin(subgroup_id) sg_id : u32,",
+            "@builtin(num_subgroups) sg_count : u32,",
+          ]
+        : []),
       wb.popIndent,
       ") {",
       wb.pushIndent,
@@ -544,7 +556,15 @@ function pipelineSource(device: GPUDevice, kernel: Kernel): ShaderInfo {
     }
     wb.emit(wb.popIndent, "}");
 
-    if (groupedReduction) {
+    if (subgroupReduction) {
+      // Do not assume a hardware subgroup width or local-lane mapping.
+      for (let i = 0; i < upcast; i++)
+        wb.emit(`${acc[i]} = subgroupAdd(${acc[i]});`);
+      wb.emit("if (subgroupElect()) {", wb.pushIndent);
+      for (let i = 0; i < upcast; i++)
+        wb.emit(`partial${i}[sg_id] = ${acc[i]};`);
+      wb.emit(wb.popIndent, "}", "workgroupBarrier();");
+    } else if (groupedReduction) {
       for (let i = 0; i < upcast; i++)
         wb.emit(`partial${i}[lid.x] = ${acc[i]};`);
       wb.emit("workgroupBarrier();");
@@ -585,7 +605,13 @@ function pipelineSource(device: GPUDevice, kernel: Kernel): ShaderInfo {
     }
     if (groupedReduction) {
       wb.emit("if (lid.x == 0u) {", wb.pushIndent);
-      for (let i = 0; i < upcast; i++) wb.emit(`${acc[i]} = partial${i}[0u];`);
+      for (let i = 0; i < upcast; i++) {
+        wb.emit(`${acc[i]} = partial${i}[0u];`);
+        if (subgroupReduction)
+          wb.emit(
+            `for (var sg = 1u; sg < sg_count; sg++) { ${acc[i]} += partial${i}[sg]; }`,
+          );
+      }
     }
     for (let i = 0; i < upcast; i++) {
       const index = strip1(gen.run(outputIdxExps[i]));

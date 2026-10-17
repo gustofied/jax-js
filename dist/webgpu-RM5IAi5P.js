@@ -1,4 +1,4 @@
-import { $ as range, F as isFloatDtype, L as DEBUG, Q as prod, R as FpHash, T as AluGroup, W as findPow2, Y as mapSetUnion, _ as tuneWebgpu, d as isTracing, f as onFlushTrace, h as traceSourceInfo, i as UnsupportedRoutineError, it as strip1, n as SlotError, r as UnsupportedOpError, t as Executable, u as emitTrace, w as AluExp, y as View } from "./backend-DtMjS8dm.js";
+import { $ as range, F as isFloatDtype, L as DEBUG, Q as prod, R as FpHash, T as AluGroup, W as findPow2, Y as mapSetUnion, _ as tuneWebgpu, d as isTracing, f as onFlushTrace, h as traceSourceInfo, i as UnsupportedRoutineError, it as strip1, n as SlotError, r as UnsupportedOpError, t as Executable, u as emitTrace, w as AluExp, y as View } from "./backend-CIGrFKHR.js";
 //#region src/backend/webgpu/builtins.ts
 const threefrySrc = `
 fn threefry2x32(key: vec2<u32>, ctr: vec2<u32>) -> vec2<u32> {
@@ -1985,8 +1985,12 @@ function pipelineSource(device, kernel) {
 	const tune = tuneWebgpu(kernel);
 	if (DEBUG >= 3) console.info(`kernel.exp: ${kernel.exp}\ntune.exp: ${tune.exp}`);
 	const { nargs, reduction: re } = kernel;
+	const groupCount = re ? tune.size.groups ?? 1 : 1;
+	const groupedReduction = re && groupCount > 1;
+	const subgroupReduction = groupedReduction && re.op === "Add" && re.dtype === "float32" && device.features.has("subgroups");
 	const args = Array.from({ length: nargs }, (_, i) => `in${i}`);
 	const wb = new WgslBuilder();
+	if (subgroupReduction) wb.emit("enable subgroups;");
 	wb.emitPreamble(device, [tune.exp, tune.epilogue]);
 	const usedArgs = Array.from({ length: nargs }, () => null);
 	tune.exp.fold((exp) => {
@@ -2001,8 +2005,6 @@ function pipelineSource(device, kernel) {
 	}
 	const resultTy = dtypeToWgsl(kernel.dtype, true);
 	wb.emit(`@group(0) @binding(${nargs}) var<storage, read_write> result : array<${resultTy}>;`);
-	const groupCount = re ? tune.size.groups ?? 1 : 1;
-	const groupedReduction = re && groupCount > 1;
 	if (groupedReduction && tune.threadCount % groupCount !== 0) throw new Error("WebGPU grouped reduction has invalid thread count");
 	if (groupedReduction && groupCount > device.limits.maxComputeWorkgroupSizeX) throw new Error("WebGPU grouped reduction exceeds workgroup size limit");
 	const workgroupSize = groupedReduction ? groupCount : findPow2(tune.threadCount, 256);
@@ -2014,7 +2016,7 @@ function pipelineSource(device, kernel) {
 	}
 	wb.emit("", `@compute @workgroup_size(${workgroupSize})`);
 	if (groupedReduction) {
-		wb.emit("fn main(", wb.pushIndent, "@builtin(local_invocation_id) lid : vec3<u32>,", "@builtin(workgroup_id) wg_id : vec3<u32>,", wb.popIndent, ") {", wb.pushIndent);
+		wb.emit("fn main(", wb.pushIndent, "@builtin(local_invocation_id) lid : vec3<u32>,", "@builtin(workgroup_id) wg_id : vec3<u32>,", ...subgroupReduction ? ["@builtin(subgroup_id) sg_id : u32,", "@builtin(num_subgroups) sg_count : u32,"] : [], wb.popIndent, ") {", wb.pushIndent);
 		if (gridY === 1) wb.emit(`if (wg_id.x >= ${gridSize}u) { return; }`, "let gidx: i32 = i32(wg_id.x);");
 		else wb.emit(`if (${gridX}u * wg_id.y + wg_id.x >= ${gridSize}u) { return; }`, `let gidx: i32 = i32(${gridX}u * wg_id.y + wg_id.x);`);
 		wb.emit("let group: i32 = i32(lid.x);");
@@ -2069,7 +2071,12 @@ function pipelineSource(device, kernel) {
 			else throw new Error(`Unsupported reduction op: ${re.op}`);
 		}
 		wb.emit(wb.popIndent, "}");
-		if (groupedReduction) {
+		if (subgroupReduction) {
+			for (let i = 0; i < upcast; i++) wb.emit(`${acc[i]} = subgroupAdd(${acc[i]});`);
+			wb.emit("if (subgroupElect()) {", wb.pushIndent);
+			for (let i = 0; i < upcast; i++) wb.emit(`partial${i}[sg_id] = ${acc[i]};`);
+			wb.emit(wb.popIndent, "}", "workgroupBarrier();");
+		} else if (groupedReduction) {
 			for (let i = 0; i < upcast; i++) wb.emit(`partial${i}[lid.x] = ${acc[i]};`);
 			wb.emit("workgroupBarrier();");
 			for (let stride = groupCount / 2; stride >= 1; stride /= 2) {
@@ -2093,7 +2100,10 @@ function pipelineSource(device, kernel) {
 		}
 		if (groupedReduction) {
 			wb.emit("if (lid.x == 0u) {", wb.pushIndent);
-			for (let i = 0; i < upcast; i++) wb.emit(`${acc[i]} = partial${i}[0u];`);
+			for (let i = 0; i < upcast; i++) {
+				wb.emit(`${acc[i]} = partial${i}[0u];`);
+				if (subgroupReduction) wb.emit(`for (var sg = 1u; sg < sg_count; sg++) { ${acc[i]} += partial${i}[sg]; }`);
+			}
 		}
 		for (let i = 0; i < upcast; i++) {
 			const index = strip1(gen.run(outputIdxExps[i]));

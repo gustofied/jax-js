@@ -965,13 +965,14 @@ function splitGraphDataflow(backend: Backend, jaxpr: Jaxpr): Set<Var> {
   // Also, mark a node black if there are at least two black nodes that can be
   // reached from it, while only going through non-black nodes.
   //
-  // TODO: Don't do the above for 'simple' nodes: reshape, cast, etc.
+  // Pure views can be shared without materializing a copy. Carry their consumer
+  // endpoints backwards so any computed producer is still evaluated only once.
   const blackNodes = new Set<Var>();
-  const p1NextBlack = new Map<Var, Var>();
+  const p1NextBlack = new Map<Var, Set<Var>>();
   for (const v of jaxpr.outs) {
     if (v instanceof Var) {
       blackNodes.add(v);
-      p1NextBlack.set(v, v);
+      p1NextBlack.set(v, new Set([v]));
     }
   }
   const heterogeneousViewPrimitives = [
@@ -1010,7 +1011,7 @@ function splitGraphDataflow(backend: Backend, jaxpr: Jaxpr): Set<Var> {
     ) {
       for (const v of eqn.outBinders) {
         blackNodes.add(v);
-        p1NextBlack.set(v, v);
+        p1NextBlack.set(v, new Set([v]));
       }
       continue;
     }
@@ -1018,19 +1019,26 @@ function splitGraphDataflow(backend: Backend, jaxpr: Jaxpr): Set<Var> {
     for (const v of eqn.outBinders) {
       for (const j of varToUsages.get(v) ?? []) {
         for (const o of jaxpr.eqns[j].outBinders) {
-          const u = p1NextBlack.get(o);
-          if (u) reach.add(u);
+          for (const u of p1NextBlack.get(o) ?? []) reach.add(u);
         }
       }
     }
-    if (reach.size > 1) {
+    if (
+      reach.size > 1 &&
+      ![
+        Primitive.Reshape,
+        Primitive.Transpose,
+        Primitive.Broadcast,
+        Primitive.Shrink,
+        Primitive.Flip,
+      ].includes(eqn.primitive)
+    ) {
       for (const v of eqn.outBinders) {
         blackNodes.add(v);
-        p1NextBlack.set(v, v);
+        p1NextBlack.set(v, new Set([v]));
       }
-    } else if (reach.size === 1) {
-      const b = reach.values().next().value!;
-      for (const v of eqn.outBinders) p1NextBlack.set(v, b);
+    } else if (reach.size) {
+      for (const v of eqn.outBinders) p1NextBlack.set(v, reach);
     }
   }
 

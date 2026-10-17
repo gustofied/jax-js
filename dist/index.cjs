@@ -11,7 +11,7 @@ var __exportAll = (all, no_symbols) => {
 	return target;
 };
 //#endregion
-const require_backend = require("./backend-BBETgP83.cjs");
+const require_backend = require("./backend-CzxWZKoY.cjs");
 //#region src/frontend/convolution.ts
 /**
 * Check that the shapes and parameters passed to convolution are valid.
@@ -2426,7 +2426,7 @@ function splitGraphDataflow(backend, jaxpr) {
 	const p1NextBlack = /* @__PURE__ */ new Map();
 	for (const v of jaxpr.outs) if (v instanceof Var) {
 		blackNodes.add(v);
-		p1NextBlack.set(v, v);
+		p1NextBlack.set(v, /* @__PURE__ */ new Set([v]));
 	}
 	const heterogeneousViewPrimitives = ["random_bits", "gather"];
 	const needsCleanShapePrimitives = ["concatenate", "pad"];
@@ -2438,23 +2438,23 @@ function splitGraphDataflow(backend, jaxpr) {
 		if (reductionEndpointEqns.has(i) || heterogeneousViewPrimitives.includes(eqn.primitive) || routinePrimitives.has(eqn.primitive) || eqn.outBinders.some((v) => materializedProducers.has(v)) || eqn.outBinders.some((v) => blackNodes.has(v))) {
 			for (const v of eqn.outBinders) {
 				blackNodes.add(v);
-				p1NextBlack.set(v, v);
+				p1NextBlack.set(v, /* @__PURE__ */ new Set([v]));
 			}
 			continue;
 		}
 		const reach = /* @__PURE__ */ new Set();
-		for (const v of eqn.outBinders) for (const j of varToUsages.get(v) ?? []) for (const o of jaxpr.eqns[j].outBinders) {
-			const u = p1NextBlack.get(o);
-			if (u) reach.add(u);
-		}
-		if (reach.size > 1) for (const v of eqn.outBinders) {
+		for (const v of eqn.outBinders) for (const j of varToUsages.get(v) ?? []) for (const o of jaxpr.eqns[j].outBinders) for (const u of p1NextBlack.get(o) ?? []) reach.add(u);
+		if (reach.size > 1 && ![
+			"reshape",
+			"transpose",
+			"broadcast",
+			"shrink",
+			"flip"
+		].includes(eqn.primitive)) for (const v of eqn.outBinders) {
 			blackNodes.add(v);
-			p1NextBlack.set(v, v);
+			p1NextBlack.set(v, /* @__PURE__ */ new Set([v]));
 		}
-		else if (reach.size === 1) {
-			const b = reach.values().next().value;
-			for (const v of eqn.outBinders) p1NextBlack.set(v, b);
-		}
+		else if (reach.size) for (const v of eqn.outBinders) p1NextBlack.set(v, reach);
 	}
 	const p2Deps = /* @__PURE__ */ new Map();
 	for (const v of jaxpr.inBinders) p2Deps.set(v, /* @__PURE__ */ new Set([v]));
