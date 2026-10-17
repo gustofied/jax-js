@@ -839,7 +839,8 @@ function splitGraphDataflow(backend: Backend, jaxpr: Jaxpr): Set<Var> {
 
         const nextEqn = jaxpr.eqns[usages[0]];
         switch (nextEqn.primitive) {
-          // We can always fuse unary operations.
+          // Reshape and unary operations preserve the flat output index.
+          case Primitive.Reshape:
           case Primitive.BitCount:
           case Primitive.Neg:
           case Primitive.Reciprocal:

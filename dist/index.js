@@ -2332,6 +2332,7 @@ function splitGraphDataflow(backend, jaxpr) {
 				if (reductionEpilogueEqns.has(usages[0])) break;
 				const nextEqn = jaxpr.eqns[usages[0]];
 				switch (nextEqn.primitive) {
+					case "reshape":
 					case "bit_count":
 					case "neg":
 					case "reciprocal":
