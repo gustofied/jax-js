@@ -1199,6 +1199,7 @@ type ArrayConstructorArgs = {
   backend: Backend;
   committed: boolean;
   pending?: Iterable<PendingExecute>;
+  sharedPending?: Set<PendingExecute>;
 };
 /**
  * A multidimensional numeric array with data stored on CPU or GPU.

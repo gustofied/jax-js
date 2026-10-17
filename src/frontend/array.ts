@@ -171,6 +171,9 @@ type ArrayConstructorArgs = {
   backend: Backend;
   committed: boolean;
   pending?: Iterable<PendingExecute>;
+  // Internal JIT outputs may share their dependency set. Appending work must
+  // detach it first; pruning already-submitted work is safe for all outputs.
+  sharedPending?: Set<PendingExecute>;
 };
 
 /**
@@ -210,7 +213,7 @@ export class Array extends Tracer {
     this.#committed = args.committed;
     this.#rc = 1;
 
-    this.#pendingSet = new Set(args.pending);
+    this.#pendingSet = args.sharedPending ?? new Set(args.pending);
     if (this.#pendingSet.size === 0) {
       this.#pendingSet = null;
     } else if (this.#source instanceof AluExp) {
@@ -743,7 +746,7 @@ export class Array extends Tracer {
       this.#backend.decRef(this.#source);
       this.#source = output;
       this.#st = ShapeTracker.fromShape(this.shape);
-      this.#pendingSet ??= new Set();
+      this.#pendingSet = new Set(this.#pendingSet ?? []);
       this.#pendingSet.add(pendingItem);
     }
   }
@@ -1219,15 +1222,16 @@ export class Array extends Tracer {
         pending.splice(0, 0, ...prevPending); // Dispatch order of pending kernels is important.
         args.forEach((x) => x.dispose()); // Dispose of args after dispatch.
 
+        const sharedPending = new Set(pending);
         return outputs.map((source, i) => {
           return new Array({
             source,
+            sharedPending,
             st: ShapeTracker.fromShape(jaxpr.outs[i].aval.shape),
             dtype: jaxpr.outs[i].aval.dtype,
             weakType: jaxpr.outs[i].aval.weakType,
             backend,
             committed,
-            pending,
           });
         });
       },

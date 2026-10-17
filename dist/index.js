@@ -2595,7 +2595,7 @@ var Array$1 = class Array$1 extends Tracer {
 		this.#backend = args.backend;
 		this.#committed = args.committed;
 		this.#rc = 1;
-		this.#pendingSet = new Set(args.pending);
+		this.#pendingSet = args.sharedPending ?? new Set(args.pending);
 		if (this.#pendingSet.size === 0) this.#pendingSet = null;
 		else if (this.#source instanceof AluExp) throw new Error("internal: AluExp source cannot have pending executes");
 	}
@@ -2965,7 +2965,7 @@ var Array$1 = class Array$1 extends Tracer {
 			this.#backend.decRef(this.#source);
 			this.#source = output;
 			this.#st = ShapeTracker.fromShape(this.shape);
-			this.#pendingSet ??= /* @__PURE__ */ new Set();
+			this.#pendingSet = new Set(this.#pendingSet ?? []);
 			this.#pendingSet.add(pendingItem);
 		}
 	}
@@ -3331,15 +3331,16 @@ var Array$1 = class Array$1 extends Tracer {
 				for (const exe of prevPending) exe.updateRc(+outputs.length);
 				pending.splice(0, 0, ...prevPending);
 				args.forEach((x) => x.dispose());
+				const sharedPending = new Set(pending);
 				return outputs.map((source, i) => {
 					return new Array$1({
 						source,
+						sharedPending,
 						st: ShapeTracker.fromShape(jaxpr.outs[i].aval.shape),
 						dtype: jaxpr.outs[i].aval.dtype,
 						weakType: jaxpr.outs[i].aval.weakType,
 						backend,
-						committed,
-						pending
+						committed
 					});
 				});
 			}

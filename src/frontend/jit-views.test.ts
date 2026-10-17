@@ -1,6 +1,6 @@
 import { beforeEach, expect, suite, test } from "vitest";
 
-import { defaultDevice, init, jit, numpy as np } from "../index";
+import { defaultDevice, init, jit, numpy as np, tree } from "../index";
 
 const available = await init();
 suite.each(available)("shared JIT views on %s", (device) => {
@@ -82,5 +82,55 @@ suite.each(available)("shared JIT views on %s", (device) => {
     expect(
       Array.from(await f(np.arange(128).astype(np.float32)).data()),
     ).toEqual([121, 1145, 377, 1401, 633, 1657, 889, 1913]);
+  });
+
+  test("keeps pending JIT work alive when sibling outputs are disposed", async () => {
+    const f = jit((x: np.Array) => [x.ref.mul(2), x.add(7)]);
+    const [discarded, kept] = f(np.arange(1024).astype(np.float32));
+    discarded.dispose();
+    expect(Array.from(await kept.data())).toEqual(
+      Array.from({ length: 1024 }, (_, i) => i + 7),
+    );
+  });
+
+  test("submits shared outputs once when read concurrently", async () => {
+    const f = jit((x: np.Array) => [x.ref.mul(2), x.add(7)]);
+    const values = await Promise.all(
+      f(np.arange(1024).astype(np.float32)).map((x) => x.data()),
+    );
+    expect(Array.from(values[0])).toEqual(
+      Array.from({ length: 1024 }, (_, i) => i * 2),
+    );
+    expect(Array.from(values[1])).toEqual(
+      Array.from({ length: 1024 }, (_, i) => i + 7),
+    );
+  });
+
+  test("preserves differently shaped shared outputs", async () => {
+    const f = jit((x: np.Array) => [
+      x.ref.reshape([32, 32]).transpose(),
+      x.add(7),
+    ]);
+    const [view, sibling] = f(np.arange(1024).astype(np.float32));
+    const [a, b] = await Promise.all([view.data(), sibling.data()]);
+    expect(Array.from(a)).toEqual(
+      Array.from(
+        { length: 1024 },
+        (_, i) => (i % 32) * 32 + Math.floor(i / 32),
+      ),
+    );
+    expect(Array.from(b)).toEqual(
+      Array.from({ length: 1024 }, (_, i) => i + 7),
+    );
+  });
+
+  test("cancels a complete output family without affecting the next call", async () => {
+    const f = jit((x: np.Array) => [x.ref.mul(2), x.add(7)]);
+    tree.dispose(f(np.arange(1024).astype(np.float32)));
+    const [a, b] = f(np.arange(1024).astype(np.float32));
+    a.dispose();
+    expect(Array.from(await b.data())).toEqual(
+      Array.from({ length: 1024 }, (_, i) => i + 7),
+    );
   });
 });
