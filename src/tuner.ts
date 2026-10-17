@@ -338,6 +338,18 @@ export function tuneWebgpu(kernel: Kernel): TuneResult {
     prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512
   ) {
     const axis = dim.reduce;
+    // Keep adjacent packed values in the same invocation before distributing
+    // the reduction across lanes. Shared integer loads and bit operations can
+    // then be reused by codegen instead of being repeated by separate lanes.
+    const hasPackedValues =
+      exp.collect((e) => e.op === AluOp.BitShift).length > 0;
+    if (
+      hasPackedValues &&
+      dim.st.shape[axis] % 4 === 0 &&
+      !/Mobi|Android/i.test(navigator.userAgent)
+    ) {
+      dim.applyUnroll(axis, 4);
+    }
     let amount = 32;
     while (amount > 1 && dim.st.shape[axis] % amount !== 0) amount /= 2;
     if (amount > 1) dim.applyGroup(axis, amount);

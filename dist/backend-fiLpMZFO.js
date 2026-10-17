@@ -2703,6 +2703,7 @@ function tuneWebgpu(kernel) {
 	});
 	if (reduction.op === "Add" && reduction.dtype === "float32" && groupCandidateHasContiguousInputs && prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512) {
 		const axis = dim.reduce;
+		if (exp.collect((e) => e.op === "BitShift").length > 0 && dim.st.shape[axis] % 4 === 0 && !/Mobi|Android/i.test(navigator.userAgent)) dim.applyUnroll(axis, 4);
 		let amount = 32;
 		while (amount > 1 && dim.st.shape[axis] % amount !== 0) amount /= 2;
 		if (amount > 1) dim.applyGroup(axis, amount);
@@ -6002,7 +6003,7 @@ async function createBackend(device) {
 		if (!navigator.gpu) return null;
 		const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
 		if (!adapter) return null;
-		const { WebGPUBackend } = await import("./webgpu-RM5IAi5P.js");
+		const { WebGPUBackend } = await import("./webgpu-D63JhZND.js");
 		const importantLimits = [
 			"maxBufferSize",
 			"maxComputeInvocationsPerWorkgroup",
@@ -6041,7 +6042,7 @@ async function createBackend(device) {
 			failIfMajorPerformanceCaveat: true
 		});
 		if (!gl) return null;
-		const { WebGLBackend } = await import("./webgl-CdfO8XnI.js");
+		const { WebGLBackend } = await import("./webgl-BiaHpPAX.js");
 		return new WebGLBackend(gl);
 	} else throw new Error(`Backend not found: ${device}`);
 }
