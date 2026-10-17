@@ -1,6 +1,7 @@
 import { AluExp, AluOp, DType, Kernel } from "../alu";
 import { Backend, Device, Executable, Slot, SlotError } from "../backend";
 import { Routine } from "../routine";
+import { isTracing } from "../tracing";
 import { tuneWebgpu } from "../tuner";
 import { DEBUG, findPow2, FpHash, prod, range, strip1 } from "../utils";
 import {
@@ -24,6 +25,14 @@ interface ShaderDispatch extends ShaderInfo {
 
 const MAX_REUSABLE_BUFFER_BYTES = 64 * 1024 * 1024;
 const MAX_REUSABLE_BUFFERS_PER_SIZE = 64;
+// Bound encoding latency and let the GPU start while the next chunk is encoded.
+const MAX_BATCH_OPERATIONS = 64;
+
+interface DispatchBatch {
+  encoder: GPUCommandEncoder;
+  pass: GPUComputePassEncoder | null;
+  retired: GPUBuffer[];
+}
 
 /** Implementation of `Backend` that uses WebGPU in browsers. */
 export class WebGPUBackend implements Backend {
@@ -46,6 +55,33 @@ export class WebGPUBackend implements Backend {
   #cachedShaderMap = new Map<bigint, ShaderInfo>();
   #reusableZsb: GPUBuffer;
   #bufferPool = new Map<number, GPUBuffer[]>();
+  #batchDepth = 0;
+  #dispatchBatch: DispatchBatch | null = null;
+  #batchOperations = 0;
+
+  batch(dispatch: () => void): void {
+    this.#batchDepth++;
+    try {
+      dispatch();
+    } finally {
+      if (--this.#batchDepth === 0) this.#flush();
+    }
+  }
+
+  #flush(): void {
+    const batch = this.#dispatchBatch;
+    if (!batch) return;
+    this.#dispatchBatch = null;
+    this.#batchOperations = 0;
+    batch.pass?.end();
+    try {
+      this.device.queue.submit([batch.encoder.finish()]);
+    } finally {
+      // Destroy only after submission. GPU work holds its own references once
+      // submitted; unsubmitted commands would instead see a destroyed buffer.
+      for (const buffer of batch.retired) buffer.destroy();
+    }
+  }
 
   constructor(readonly device: GPUDevice) {
     if (DEBUG >= 3 && device.adapterInfo) {
@@ -86,6 +122,9 @@ export class WebGPUBackend implements Backend {
       size === 0 ? this.#reusableZsb : this.#acquireBuffer(allocatedSize);
 
     if (initialData && size > 0) {
+      // A pooled buffer can still be referenced by encoded commands. A host
+      // write must be queued after those commands, not before submission.
+      this.#flush();
       if (initialData.byteLength % 4 === 0) {
         this.device.queue.writeBuffer(buffer, 0, initialData);
       } else {
@@ -128,6 +167,7 @@ export class WebGPUBackend implements Backend {
     start?: number,
     count?: number,
   ): Promise<Uint8Array<ArrayBuffer>> {
+    this.#flush();
     const { buffer, size } = this.#getBuffer(slot);
     if (buffer === this.#reusableZsb) return new Uint8Array();
     if (start === undefined) start = 0;
@@ -154,6 +194,7 @@ export class WebGPUBackend implements Backend {
     start?: number,
     count?: number,
   ): Uint8Array<ArrayBuffer> {
+    this.#flush();
     const { buffer, size } = this.#getBuffer(slot);
     if (buffer === this.#reusableZsb) return new Uint8Array();
     if (start === undefined) start = 0;
@@ -212,7 +253,26 @@ export class WebGPUBackend implements Backend {
   ): void {
     const inputBuffers = inputs.map((slot) => this.#getBuffer(slot).buffer);
     const outputBuffers = outputs.map((slot) => this.#getBuffer(slot).buffer);
-    pipelineSubmit(this.device, exe, inputBuffers, outputBuffers);
+    // Per-operation timestamp tracing retains separate submissions: tracing
+    // may resolve a full query set in the middle of an execution sequence.
+    if (this.#batchDepth && !isTracing()) {
+      this.#dispatchBatch ??= {
+        encoder: this.device.createCommandEncoder(),
+        pass: null,
+        retired: [],
+      };
+      pipelineSubmit(
+        this.device,
+        exe,
+        inputBuffers,
+        outputBuffers,
+        this.#dispatchBatch,
+      );
+      if (++this.#batchOperations >= MAX_BATCH_OPERATIONS) this.#flush();
+    } else {
+      this.#flush();
+      pipelineSubmit(this.device, exe, inputBuffers, outputBuffers);
+    }
   }
 
   #getBuffer(slot: Slot): { buffer: GPUBuffer; size: number } {
@@ -231,7 +291,7 @@ export class WebGPUBackend implements Backend {
 
   #releaseBuffer(buffer: GPUBuffer, size: number): void {
     if (size > MAX_REUSABLE_BUFFER_BYTES) {
-      buffer.destroy();
+      this.#retireBuffer(buffer);
       return;
     }
     const bucket = this.#bufferPool.get(size);
@@ -240,10 +300,15 @@ export class WebGPUBackend implements Backend {
       return;
     }
     if (bucket.length >= MAX_REUSABLE_BUFFERS_PER_SIZE) {
-      buffer.destroy();
+      this.#retireBuffer(buffer);
       return;
     }
     bucket.push(buffer);
+  }
+
+  #retireBuffer(buffer: GPUBuffer): void {
+    if (this.#dispatchBatch) this.#dispatchBatch.retired.push(buffer);
+    else buffer.destroy();
   }
 
   /**
@@ -534,9 +599,10 @@ function pipelineSubmit(
   exe: Executable<ShaderDispatch[]>,
   inputs: GPUBuffer[],
   outputs: GPUBuffer[],
+  batch?: DispatchBatch,
 ) {
   const { data: pipelines, source } = exe;
-  const commandEncoder = device.createCommandEncoder();
+  const commandEncoder = batch?.encoder ?? device.createCommandEncoder();
   for (const { pipeline, ...shader } of pipelines) {
     if (
       inputs.length !== shader.numInputs ||
@@ -549,6 +615,10 @@ function pipelineSubmit(
     }
 
     if (shader.clearOutputs) {
+      if (batch?.pass) {
+        batch.pass.end();
+        batch.pass = null;
+      }
       for (const output of outputs) commandEncoder.clearBuffer(output);
     }
 
@@ -600,13 +670,15 @@ function pipelineSubmit(
           };
         }
       }
-      const passEncoder = commandEncoder.beginComputePass({ timestampWrites });
+      const passEncoder = batch
+        ? (batch.pass ??= commandEncoder.beginComputePass())
+        : commandEncoder.beginComputePass({ timestampWrites });
       passEncoder.setPipeline(pipeline);
       passEncoder.setBindGroup(0, bindGroup);
       if (uniformBindGroup)
         passEncoder.setBindGroup(1, uniformBindGroup, [i * uniformAlignment]);
       passEncoder.dispatchWorkgroups(grid[0], grid[1]);
-      passEncoder.end();
+      if (!batch) passEncoder.end();
     }
 
     if (slot) {
@@ -614,7 +686,7 @@ function pipelineSubmit(
     }
   }
 
-  device.queue.submit([commandEncoder.finish()]);
+  if (!batch) device.queue.submit([commandEncoder.finish()]);
 }
 
 function combineUniforms(

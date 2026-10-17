@@ -1,6 +1,6 @@
 {
   "name": "@jax-js/jax",
-  "version": "0.1.26",
+  "version": "0.1.26-kalkulator.1",
   "description": "Numerical computing and ML in the browser",
   "keywords": [
     "machine learning",
@@ -15,7 +15,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ekzhang/jax-js.git"
+    "url": "git+https://github.com/gustofied/jax-js.git"
+  },
+  "kalkulatorFork": {
+    "upstream": "https://github.com/ekzhang/jax-js",
+    "revision": "c169036a326e8888ad757239b08b25c6227fd611"
   },
   "type": "module",
   "files": [
@@ -37,6 +41,7 @@
   "license": "MIT",
   "scripts": {
     "build": "tsdown",
+    "build:jax": "tsdown --filter jax",
     "build:watch": "TSDOWN_WATCH_MODE=1 tsdown",
     "check": "tsc",
     "docs": "tsx typedoc.ts",
@@ -44,6 +49,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint",
     "test": "vitest",
+    "test:scheduler": "vitest run --config vitest.scheduler.config.ts",
     "test:coverage": "vitest run --coverage && open coverage/index.html",
     "prepublishOnly": "pnpm build",
     "postpublish": "git tag jax/v$npm_package_version && git push --tags"

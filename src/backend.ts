@@ -207,6 +207,13 @@ export interface Backend {
    * on that slot to finish.
    */
   dispatch(exe: Executable, inputs: Slot[], outputs: Slot[]): void;
+
+  /**
+   * Submit a synchronous sequence of dispatches together, if supported.
+   * Dispatch order is preserved and all encoded work is submitted on return,
+   * including when the callback throws. The callback must not yield.
+   */
+  batch?(dispatch: () => void): void;
 }
 
 export class Executable<T = any> {

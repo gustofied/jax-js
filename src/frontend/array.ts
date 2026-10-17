@@ -136,6 +136,23 @@ export class PendingExecute {
   }
 }
 
+/** Group consecutive operations without changing backend or execution order. */
+function submitPending(pending: PendingExecute[], sync = false): void {
+  let index = 0;
+  while (index < pending.length) {
+    const backend = pending[index].backend;
+    const dispatch = () => {
+      do {
+        const p = pending[index++];
+        if (sync) p.prepareSync();
+        p.submit();
+      } while (index < pending.length && pending[index].backend === backend);
+    };
+    if (backend.batch) backend.batch(dispatch);
+    else dispatch();
+  }
+}
+
 /** @inline */
 export type DTypeAndDevice = { dtype?: DType; device?: Device };
 
@@ -796,7 +813,7 @@ export class Array extends Tracer {
     if (pending) {
       // Compile all pending executables concurrently.
       await Promise.all(pending.map((p) => p.prepare()));
-      for (const p of pending) p.submit();
+      submitPending(pending);
     }
     // While the array is contiguous, it might not be the whole buffer.
     const byteCount = byteWidth(this.#dtype) * this.size;
@@ -825,7 +842,7 @@ export class Array extends Tracer {
     if (pending) {
       // Compile all pending executables concurrently.
       await Promise.all(pending.map((p) => p.prepare()));
-      for (const p of pending) p.submit();
+      submitPending(pending);
     }
     await this.#backend.read(this.#source, 0, 0);
     return this;
@@ -844,10 +861,7 @@ export class Array extends Tracer {
       return this.#dataInline();
     }
     this.#realize();
-    for (const p of this.#pending) {
-      p.prepareSync();
-      p.submit();
-    }
+    submitPending(this.#pending, true);
     // While the array is contiguous, it might not be the whole buffer.
     const byteCount = byteWidth(this.#dtype) * this.size;
     const buf = this.#backend.readSync(this.#source as Slot, 0, byteCount);
@@ -873,7 +887,7 @@ export class Array extends Tracer {
     if (pending) {
       // Compile all pending executables concurrently.
       await Promise.all(pending.map((p) => p.prepare()));
-      for (const p of pending) p.submit();
+      submitPending(pending);
     }
     const backend = this.#backend as import("../backend/webgpu").WebGPUBackend;
     const { buffer } = backend.buffers.get(this.#source as Slot)!;
@@ -886,10 +900,7 @@ export class Array extends Tracer {
     if (this.device !== "webgpu")
       throw new Error(`gpuBufferSync() is only available on WebGPU backend`);
     this.#realize();
-    for (const p of this.#pending) {
-      p.prepareSync();
-      p.submit();
-    }
+    submitPending(this.#pending, true);
     const backend = this.#backend as import("../backend/webgpu").WebGPUBackend;
     const { buffer } = backend.buffers.get(this.#source as Slot)!;
     this.dispose();
