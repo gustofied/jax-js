@@ -6,6 +6,13 @@ const available = await init();
 suite.each(available)("shared JIT views on %s", (device) => {
   beforeEach(() => defaultDevice(device));
 
+  test("materializes a transposed view before a routine", async () => {
+    const f = jit((x: np.Array) => x.reshape([2, 4]).transpose().argsort());
+    const output = f(np.array([8, 1, 6, 3, 4, 7, 2, 5]));
+    expect(output.shape).toEqual([4, 2]);
+    expect(Array.from(await output.data())).toEqual([1, 0, 0, 1, 1, 0, 0, 1]);
+  });
+
   test("shares a computed producer through differently reduced reshape branches", async () => {
     const f = jit((x: np.Array) => {
       const view = x.mul(2).add(3).reshape([4, 8]);

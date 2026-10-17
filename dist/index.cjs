@@ -2432,7 +2432,13 @@ function splitGraphDataflow(backend, jaxpr) {
 	const heterogeneousViewPrimitives = ["random_bits", "gather"];
 	const needsCleanShapePrimitives = ["concatenate", "pad"];
 	for (const eqn of jaxpr.eqns) if (needsCleanShapePrimitives.includes(eqn.primitive) || routinePrimitives.has(eqn.primitive)) {
-		for (const input of eqn.inputs) if (input instanceof Var) markNonViewProducer(input);
+		for (const input of eqn.inputs) if (input instanceof Var) {
+			markNonViewProducer(input);
+			if (routinePrimitives.has(eqn.primitive)) {
+				blackNodes.add(input);
+				p1NextBlack.set(input, /* @__PURE__ */ new Set([input]));
+			}
+		}
 	}
 	for (let i = jaxpr.eqns.length - 1; i >= 0; i--) {
 		const eqn = jaxpr.eqns[i];

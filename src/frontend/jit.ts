@@ -997,7 +997,14 @@ function splitGraphDataflow(backend: Backend, jaxpr: Jaxpr): Set<Var> {
       routinePrimitives.has(eqn.primitive)
     ) {
       for (const input of eqn.inputs) {
-        if (input instanceof Var) markNonViewProducer(input);
+        if (input instanceof Var) {
+          markNonViewProducer(input);
+          // Routines receive contiguous buffers, not lazy view expressions.
+          if (routinePrimitives.has(eqn.primitive)) {
+            blackNodes.add(input);
+            p1NextBlack.set(input, new Set([input]));
+          }
+        }
       }
     }
   }
