@@ -116,13 +116,39 @@ test("defers destruction until encoded commands have been submitted", () => {
 
 test("pool overflow does not split a batch or destroy live commands", () => {
   const { backend, events, execute } = setup();
-  const slots = Array.from({ length: 65 }, () => backend.malloc(16));
+  const slots = Array.from({ length: 513 }, () => backend.malloc(16));
   backend.batch(() => {
-    execute(false, slots[64]);
+    execute(false, slots[512]);
     for (const slot of slots) backend.decRef(slot);
     expect(events).not.toContain("destroy");
   });
   expect(events).toEqual(["begin", "dispatch", "end", "submit", "destroy"]);
+});
+
+test("bounds total small-buffer retention and releases budget on reuse", () => {
+  const { backend, events } = setup();
+  const create = vi.spyOn(backend.device, "createBuffer");
+  const slots = [
+    ...Array.from({ length: 512 }, () => backend.malloc(64 * 1024)),
+    ...Array.from({ length: 512 }, () => backend.malloc(64 * 1024 - 4)),
+  ];
+  const extra = backend.malloc(4096);
+  for (const slot of slots) backend.decRef(slot);
+  backend.decRef(extra);
+  expect(events.filter((e) => e === "destroy")).toHaveLength(1);
+
+  const allocations = create.mock.calls.length;
+  const reused = backend.malloc(64 * 1024);
+  expect(create.mock.calls.length).toBe(allocations);
+  backend.decRef(reused);
+  expect(events.filter((e) => e === "destroy")).toHaveLength(1);
+});
+
+test("retains the original pool limit for large buffers", () => {
+  const { backend, events } = setup();
+  const slots = Array.from({ length: 65 }, () => backend.malloc(64 * 1024 + 4));
+  for (const slot of slots) backend.decRef(slot);
+  expect(events.filter((e) => e === "destroy")).toHaveLength(1);
 });
 
 test("ends the compute pass before clearing routine outputs", () => {

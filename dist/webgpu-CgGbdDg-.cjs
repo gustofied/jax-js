@@ -1,4 +1,4 @@
-import { $ as range, F as isFloatDtype, L as DEBUG, Q as prod, R as FpHash, T as AluGroup, W as findPow2, Y as mapSetUnion, _ as tuneWebgpu, d as isTracing, f as onFlushTrace, h as traceSourceInfo, i as UnsupportedRoutineError, it as strip1, n as SlotError, r as UnsupportedOpError, t as Executable, u as emitTrace, w as AluExp, y as View } from "./backend-D74TsSsB.js";
+const require_backend = require("./backend-BBETgP83.cjs");
 //#region src/backend/webgpu/builtins.ts
 const threefrySrc = `
 fn threefry2x32(key: vec2<u32>, ctr: vec2<u32>) -> vec2<u32> {
@@ -87,7 +87,7 @@ var WgslBuilder = class {
 		for (const exp of exps) {
 			if (exp == null) continue;
 			hasFloat16 ||= exp.some((e) => e.dtype === "float16");
-			distinctOps = mapSetUnion(distinctOps, exp.distinctOps());
+			distinctOps = require_backend.mapSetUnion(distinctOps, exp.distinctOps());
 		}
 		if (hasFloat16) {
 			if (!device.features.has("shader-f16")) throw new Error("WebGPU device does not support shader-f16 feature");
@@ -200,7 +200,7 @@ var WgslExpCodegen = class {
 		if (this.#context.has(exp)) return this.#context.get(exp);
 		const { op, src, dtype, arg } = exp;
 		let source = "";
-		if (AluGroup.Binary.has(op) || AluGroup.Compare.has(op)) {
+		if (require_backend.AluGroup.Binary.has(op) || require_backend.AluGroup.Compare.has(op)) {
 			const a = this.run(src[0]);
 			const b = this.run(src[1]);
 			if (op === "Add") if (dtype === "bool") source = `(${a} || ${b})`;
@@ -208,74 +208,74 @@ var WgslExpCodegen = class {
 			else if (op === "Sub") source = `(${a} - ${b})`;
 			else if (op === "Mul") if (dtype === "bool") source = `(${a} && ${b})`;
 			else source = `(${a} * ${b})`;
-			else if (op === "Idiv") source = isFloatDtype(dtype) ? `trunc(${a} / ${b})` : `(${a} / ${b})`;
+			else if (op === "Idiv") source = require_backend.isFloatDtype(dtype) ? `trunc(${a} / ${b})` : `(${a} / ${b})`;
 			else if (op === "Mod") source = `(${a} % ${b})`;
 			else if (op === "Min") if (dtype === "bool") source = `(${a} && ${b})`;
-			else source = `min(${strip1(a)}, ${strip1(b)})`;
+			else source = `min(${require_backend.strip1(a)}, ${require_backend.strip1(b)})`;
 			else if (op === "Max") if (dtype === "bool") source = `(${a} || ${b})`;
-			else source = `max(${strip1(a)}, ${strip1(b)})`;
+			else source = `max(${require_backend.strip1(a)}, ${require_backend.strip1(b)})`;
 			else if (op === "BitCombine") if (arg === "and") source = `(${a} & ${b})`;
 			else if (arg === "or") source = `(${a} | ${b})`;
 			else source = dtype === "bool" ? `(${a} != ${b})` : `(${a} ^ ${b})`;
 			else if (op === "BitShift") if (arg === "shl") source = `(${a} << ${b})`;
 			else source = `(${a} >> ${b})`;
 			else if (op === "Cmplt") source = `(${a} < ${b})`;
-			else if (op === "Cmpne") if (isFloatDtype(src[0].dtype)) {
+			else if (op === "Cmpne") if (require_backend.isFloatDtype(src[0].dtype)) {
 				const x = this.#isGensym(a) ? a : this.#gensym();
 				if (x !== a) this.wb.emit(`let ${x} = ${a};`);
 				source = `(${x} != ${b} || min(${x}, ${dtypeToWgsl(src[0].dtype)}(inf())) != ${x})`;
 			} else source = `(${a} != ${b})`;
-		} else if (AluGroup.Unary.has(op)) if (op === "Reciprocal" && src[0].op === "Sqrt") source = `inverseSqrt(${this.run(src[0].src[0])})`;
+		} else if (require_backend.AluGroup.Unary.has(op)) if (op === "Reciprocal" && src[0].op === "Sqrt") source = `inverseSqrt(${this.run(src[0].src[0])})`;
 		else {
 			const a = this.run(src[0]);
-			if (op === "Sin") source = `sin(${strip1(a)})`;
-			else if (op === "Cos") source = `cos(${strip1(a)})`;
-			else if (op === "Asin") source = `asin(${strip1(a)})`;
-			else if (op === "Atan") source = `atan(${strip1(a)})`;
-			else if (op === "Exp") source = `exp(${strip1(a)})`;
-			else if (op === "Log") source = `log(${strip1(a)})`;
+			if (op === "Sin") source = `sin(${require_backend.strip1(a)})`;
+			else if (op === "Cos") source = `cos(${require_backend.strip1(a)})`;
+			else if (op === "Asin") source = `asin(${require_backend.strip1(a)})`;
+			else if (op === "Atan") source = `atan(${require_backend.strip1(a)})`;
+			else if (op === "Exp") source = `exp(${require_backend.strip1(a)})`;
+			else if (op === "Log") source = `log(${require_backend.strip1(a)})`;
 			else if (op === "Erf" || op === "Erfc") {
 				const funcName = op === "Erf" ? "erf" : "erfc";
-				if (dtype !== "float32") source = `${dtypeToWgsl(dtype)}(${funcName}(f32(${strip1(a)})))`;
-				else source = `${funcName}(${strip1(a)})`;
-			} else if (op === "Sqrt") source = `sqrt(${strip1(a)})`;
+				if (dtype !== "float32") source = `${dtypeToWgsl(dtype)}(${funcName}(f32(${require_backend.strip1(a)})))`;
+				else source = `${funcName}(${require_backend.strip1(a)})`;
+			} else if (op === "Sqrt") source = `sqrt(${require_backend.strip1(a)})`;
 			else if (op === "Reciprocal") source = `(1.0 / ${a})`;
-			else if (op === "Floor") source = `floor(${strip1(a)})`;
-			else if (op === "Ceil") source = `ceil(${strip1(a)})`;
+			else if (op === "Floor") source = `floor(${require_backend.strip1(a)})`;
+			else if (op === "Ceil") source = `ceil(${require_backend.strip1(a)})`;
 			else if (op === "Cast") {
 				const srcTy = dtypeToWgsl(src[0].dtype);
 				const dstTy = dtypeToWgsl(dtype);
-				if (isFloatDtype(src[0].dtype) && !(isFloatDtype(dtype) || dtype === "bool")) {
+				if (require_backend.isFloatDtype(src[0].dtype) && !(require_backend.isFloatDtype(dtype) || dtype === "bool")) {
 					const maxVal = maxValueWgsl(dtype);
 					const x = this.#isGensym(a) ? a : this.#gensym();
-					if (x !== a) this.wb.emit(`let ${x}: ${srcTy} = ${strip1(a)};`);
+					if (x !== a) this.wb.emit(`let ${x}: ${srcTy} = ${require_backend.strip1(a)};`);
 					source = `select(${dstTy}(${x}), ${maxVal}, ${x} >= ${srcTy}(${maxVal}))`;
-				} else source = `${dstTy}(${strip1(a)})`;
-			} else if (op === "Bitcast") source = `bitcast<${dtypeToWgsl(dtype)}>(${strip1(a)})`;
-			else if (op === "BitCount") source = `i32(countOneBits(${strip1(a)}))`;
+				} else source = `${dstTy}(${require_backend.strip1(a)})`;
+			} else if (op === "Bitcast") source = `bitcast<${dtypeToWgsl(dtype)}>(${require_backend.strip1(a)})`;
+			else if (op === "BitCount") source = `i32(countOneBits(${require_backend.strip1(a)}))`;
 		}
-		else if (op === "Where") source = `select(${strip1(this.run(src[2]))}, ${strip1(this.run(src[1]))}, ${strip1(this.run(src[0]))})`;
+		else if (op === "Where") source = `select(${require_backend.strip1(this.run(src[2]))}, ${require_backend.strip1(this.run(src[1]))}, ${require_backend.strip1(this.run(src[0]))})`;
 		else if (op === "Threefry2x32") {
 			const x = this.#gensym();
-			const [k0, k1, c0, c1] = src.map((x) => strip1(this.run(x)));
+			const [k0, k1, c0, c1] = src.map((x) => require_backend.strip1(this.run(x)));
 			this.wb.emit(`let ${x} = threefry2x32(vec2(${k0}, ${k1}), vec2(${c0}, ${c1}));`);
 			if (arg === "xor") source = `(${x}.x ^ ${x}.y)`;
 			else if (arg === 0) source = `${x}.x`;
 			else if (arg === 1) source = `${x}.y`;
-			else throw new UnsupportedOpError(op, dtype, "webgpu", arg);
+			else throw new require_backend.UnsupportedOpError(op, dtype, "webgpu", arg);
 		} else if (op === "Const") return constToWgsl(dtype, arg);
 		else if (op === "Special") return arg[0];
 		else if (op === "Variable") return arg;
 		else if (op === "GlobalIndex") {
-			source = `${this.args[arg[0]]}[${strip1(this.run(src[0]))}]`;
+			source = `${this.args[arg[0]]}[${require_backend.strip1(this.run(src[0]))}]`;
 			if (dtype === "bool") source = `(${source} != 0)`;
 		}
-		if (!source) throw new UnsupportedOpError(op, dtype, "webgpu", arg);
+		if (!source) throw new require_backend.UnsupportedOpError(op, dtype, "webgpu", arg);
 		const typeName = dtypeToWgsl(dtype);
 		if ((this.#references.get(exp) ?? 0) > 1) {
 			const name = this.#gensym();
 			this.#context.set(exp, name);
-			this.wb.emit(`let ${name}: ${typeName} = ${strip1(source)};`);
+			this.wb.emit(`let ${name}: ${typeName} = ${require_backend.strip1(source)};`);
 			return name;
 		} else {
 			this.#context.set(exp, source);
@@ -345,9 +345,9 @@ function uniformDtype(dtype) {
 	return dtype;
 }
 function replacementFor({ name, dtype, uniformDtype }) {
-	const value = AluExp.variable(uniformDtype, `uniforms.${name}`);
-	if (dtype === "float16") return AluExp.cast("float16", value);
-	if (dtype === "bool") return AluExp.cmpne(value, AluExp.i32(0));
+	const value = require_backend.AluExp.variable(uniformDtype, `uniforms.${name}`);
+	if (dtype === "float16") return require_backend.AluExp.cast("float16", value);
+	if (dtype === "bool") return require_backend.AluExp.cmpne(value, require_backend.AluExp.i32(0));
 	return value;
 }
 function writeUniform(view, offset, dtype, value) {
@@ -386,7 +386,7 @@ function uniformsData(uniforms) {
 }
 function nullaryKernelSource(device, kernel) {
 	if (kernel.nargs !== 0 || kernel.reduction) return null;
-	let exp = kernel.exp.substitute({ gidx: AluExp.special("int32", "gidx", kernel.size) }).simplify();
+	let exp = kernel.exp.substitute({ gidx: require_backend.AluExp.special("int32", "gidx", kernel.size) }).simplify();
 	let uniforms = [];
 	[exp, uniforms] = liftConstants(exp);
 	const wb = new WgslBuilder();
@@ -395,7 +395,7 @@ function nullaryKernelSource(device, kernel) {
 	const resultTy = dtypeToWgsl(kernel.dtype, true);
 	wb.emit(`@group(0) @binding(0) var<storage, read_write> result : array<${resultTy}>;`);
 	if (uniforms.length > 0) wb.emit(`@group(1) @binding(0) var<uniform> uniforms: Uniforms;`);
-	const workgroupSize = findPow2(kernel.size, 256);
+	const workgroupSize = require_backend.findPow2(kernel.size, 256);
 	const [gridX, gridY] = calculateGrid(Math.ceil(kernel.size / workgroupSize));
 	wb.emit("", `@compute @workgroup_size(${workgroupSize})`, "fn main(@builtin(global_invocation_id) id : vec3<u32>) {", wb.pushIndent);
 	if (gridY === 1) wb.emit(`if (id.x >= ${kernel.size}) { return; }`, "let gidx: i32 = i32(id.x);");
@@ -405,7 +405,7 @@ function nullaryKernelSource(device, kernel) {
 	}
 	const gen = new WgslExpCodegen(wb, []);
 	gen.countReferences(exp);
-	let rhs = strip1(gen.run(exp));
+	let rhs = require_backend.strip1(gen.run(exp));
 	if (resultTy !== dtypeToWgsl(exp.dtype)) rhs = `${resultTy}(${rhs})`;
 	wb.emit(`result[gidx] = ${rhs};`, wb.popIndent, "}");
 	return {
@@ -557,12 +557,12 @@ function bitonicSortShader(device, dtype, n, batches, outputIndices) {
 	const ty = dtypeToWgsl(dtype, true);
 	const paddedN = 1 << Math.ceil(Math.log2(n || 1));
 	const numThreads = Math.ceil(paddedN / 2);
-	const workgroupSize = findPow2(numThreads, device.limits.maxComputeWorkgroupSizeX);
+	const workgroupSize = require_backend.findPow2(numThreads, device.limits.maxComputeWorkgroupSizeX);
 	const workgroupsPerBatch = numThreads / workgroupSize;
 	const numStages = Math.log2(paddedN);
 	const numLocalStages = Math.min(numStages, Math.log2(workgroupSize * 2));
 	const needsF16 = dtype === "float16";
-	const padValue = isFloatDtype(dtype) ? `${ty}(nan())` : maxValueWgsl(dtype);
+	const padValue = require_backend.isFloatDtype(dtype) ? `${ty}(nan())` : maxValueWgsl(dtype);
 	const code = `
 ${needsF16 ? "enable f16;" : ""}
 ${headerWgsl}
@@ -583,7 +583,7 @@ var<workgroup> shared_vals: array<${ty}, ${workgroupSize * 2}>;
 ${outputIndices ? `var<workgroup> shared_idx: array<i32, ${workgroupSize * 2}>;` : ""}
 
 fn compare(a: ${ty}, b: ${ty}) -> bool {
-${isFloatDtype(dtype) ? `
+${require_backend.isFloatDtype(dtype) ? `
   let min_value = min(a, b);
   return a == min_value && b != min_value;` : "  return a < b;"}
 }
@@ -720,13 +720,13 @@ function createSort(device, type) {
 	const dtype = type.inputDtypes[0];
 	const shape = type.inputShapes[0];
 	const n = shape[shape.length - 1];
-	return bitonicSortShader(device, dtype, n, prod(shape.slice(0, -1)), false);
+	return bitonicSortShader(device, dtype, n, require_backend.prod(shape.slice(0, -1)), false);
 }
 function createArgsort(device, type) {
 	const dtype = type.inputDtypes[0];
 	const shape = type.inputShapes[0];
 	const n = shape[shape.length - 1];
-	return bitonicSortShader(device, dtype, n, prod(shape.slice(0, -1)), true);
+	return bitonicSortShader(device, dtype, n, require_backend.prod(shape.slice(0, -1)), true);
 }
 function wgslCoordinate(linearIndex, view, axis) {
 	if (view.shape[axis] <= 1) return "0u";
@@ -811,21 +811,21 @@ fn atomic_add_f16(
 }
 function createScatter(device, type, { op, shape: outputShape, axis: indexedAxes, outDim, uniqueIndices }) {
 	const dtype = type.inputDtypes[0];
-	const updateView = View.create(type.inputShapes[0]);
-	const indexViews = type.inputShapes.slice(1).map((shape) => View.create(shape));
+	const updateView = require_backend.View.create(type.inputShapes[0]);
+	const indexViews = type.inputShapes.slice(1).map((shape) => require_backend.View.create(shape));
 	const indexRank = Math.max(...indexViews.map((view) => view.ndim));
 	const updateCount = updateView.size;
 	const elementType = dtypeToWgsl(dtype, true);
 	const needsF16 = dtype === "float16";
 	if (needsF16 && !device.features.has("shader-f16")) throw new Error("WebGPU device does not support shader-f16 feature");
-	const freeUpdateDims = [...range(outDim), ...range(outDim + indexRank, updateView.ndim)];
+	const freeUpdateDims = [...require_backend.range(outDim), ...require_backend.range(outDim + indexRank, updateView.ndim)];
 	const indexLoads = indexViews.map((indexView, i) => {
 		return `  let scatter_index_${i} = i32(index_${i}[${wgslBroadcastIndex("global", updateView, indexView, outDim, indexRank)}]);`;
 	});
 	const bounds = indexedAxes.map((outputAxis, i) => `scatter_index_${i} < 0 || scatter_index_${i} >= ${outputShape[outputAxis]}`);
-	const outputView = View.create(outputShape);
+	const outputView = require_backend.View.create(outputShape);
 	let freeDim = 0;
-	const outputIndex = range(outputShape.length).map((outputAxis) => {
+	const outputIndex = require_backend.range(outputShape.length).map((outputAxis) => {
 		const indexInput = indexedAxes.indexOf(outputAxis);
 		let coord;
 		if (indexInput === -1) coord = wgslCoordinate("global", updateView, freeUpdateDims[freeDim++]);
@@ -839,7 +839,7 @@ function createScatter(device, type, { op, shape: outputShape, axis: indexedAxes
 		helpers: ""
 	};
 	const maxThreads = device.limits.maxComputeWorkgroupSizeX;
-	const workgroupSize = findPow2(Math.min(Math.max(updateCount, 1), maxThreads), maxThreads);
+	const workgroupSize = require_backend.findPow2(Math.min(Math.max(updateCount, 1), maxThreads), maxThreads);
 	return [{
 		code: `
 ${needsF16 ? "enable f16;" : ""}
@@ -887,10 +887,10 @@ function createTriangularSolve(device, type, params) {
 	const bShape = type.inputShapes[1];
 	const n = aShape[aShape.length - 1];
 	const numRhs = bShape[bShape.length - 2];
-	const numMatrices = prod(aShape.slice(0, -2));
+	const numMatrices = require_backend.prod(aShape.slice(0, -2));
 	const needsF16 = dtype === "float16";
 	const ty = dtypeToWgsl(dtype, true);
-	const workgroupSize = findPow2(n, device.limits.maxComputeWorkgroupSizeX);
+	const workgroupSize = require_backend.findPow2(n, device.limits.maxComputeWorkgroupSizeX);
 	return [{
 		code: `
 ${needsF16 ? "enable f16;" : ""}
@@ -981,10 +981,10 @@ function createCholesky(device, type) {
 	const dtype = type.inputDtypes[0];
 	const shape = type.inputShapes[0];
 	const n = shape[shape.length - 1];
-	const batches = prod(shape.slice(0, -2));
+	const batches = require_backend.prod(shape.slice(0, -2));
 	const needsF16 = dtype === "float16";
 	const ty = dtypeToWgsl(dtype, true);
-	const workgroupSize = Math.min(256, findPow2(0, device.limits.maxComputeWorkgroupSizeX));
+	const workgroupSize = Math.min(256, require_backend.findPow2(0, device.limits.maxComputeWorkgroupSizeX));
 	const useBlocked = n >= CHOLESKY_BLOCK_THRESHOLD;
 	const blockSize = useBlocked ? CHOLESKY_BLOCK_SIZE : n;
 	const code = `
@@ -1246,10 +1246,10 @@ function createLU(device, type) {
 	const m = shape[shape.length - 2];
 	const n = shape[shape.length - 1];
 	const r = Math.min(m, n);
-	const batches = prod(shape.slice(0, -2));
+	const batches = require_backend.prod(shape.slice(0, -2));
 	const needsF16 = dtype === "float16";
 	const ty = dtypeToWgsl(dtype, true);
-	const workgroupSize = findPow2(Math.max(m, n), device.limits.maxComputeWorkgroupSizeX);
+	const workgroupSize = require_backend.findPow2(Math.max(m, n), device.limits.maxComputeWorkgroupSizeX);
 	return [{
 		code: `
 ${needsF16 ? "enable f16;" : ""}
@@ -1346,11 +1346,11 @@ function createJacobiEigh(device, type, params) {
 	const dtype = type.inputDtypes[0];
 	const shape = type.inputShapes[0];
 	const n = shape[shape.length - 1];
-	const batches = prod(shape.slice(0, -2));
+	const batches = require_backend.prod(shape.slice(0, -2));
 	const needsF16 = dtype === "float16";
 	const ty = dtypeToWgsl(dtype, true);
 	const tolerance = `${ty}(${params.tolerance})`;
-	const workgroupSize = findPow2(Math.max(n, 1), device.limits.maxComputeWorkgroupSizeX);
+	const workgroupSize = require_backend.findPow2(Math.max(n, 1), device.limits.maxComputeWorkgroupSizeX);
 	return [{
 		code: `
 ${needsF16 ? "enable f16;" : ""}
@@ -1494,11 +1494,11 @@ function createFft(device, type, params) {
 	const dtype = type.inputDtypes[0];
 	const shape = type.inputShapes[0];
 	const n = shape[shape.length - 1];
-	const batches = prod(shape.slice(0, -1));
-	if (prod(params.factors) !== n) throw new Error(`fft: factorization ${params.factors} does not match size ${n}`);
+	const batches = require_backend.prod(shape.slice(0, -1));
+	if (require_backend.prod(params.factors) !== n) throw new Error(`fft: factorization ${params.factors} does not match size ${n}`);
 	const needsF16 = dtype === "float16";
 	const ty = dtypeToWgsl(dtype, true);
-	const workgroupSize = Math.min(256, findPow2(0, device.limits.maxComputeWorkgroupSizeX));
+	const workgroupSize = Math.min(256, require_backend.findPow2(0, device.limits.maxComputeWorkgroupSizeX));
 	const maxFactor = Math.max(1, ...params.factors);
 	const angleScale = params.inverse ? "6.283185307179586" : "-6.283185307179586";
 	const digitReversal = params.factors.map((factor) => `
@@ -1625,7 +1625,7 @@ function createRoutineShader(device, routine) {
 		case "LU": return createLU(device, routine.type);
 		case "JacobiEigh": return createJacobiEigh(device, routine.type, routine.params);
 		case "Fft": return createFft(device, routine.type, routine.params);
-		default: throw new UnsupportedRoutineError(routine.name, "webgpu");
+		default: throw new require_backend.UnsupportedRoutineError(routine.name, "webgpu");
 	}
 }
 //#endregion
@@ -1660,7 +1660,7 @@ function acquireTracingSlot(device) {
 	if (!batch) {
 		batch = createTracingBatch(device);
 		activeBatch.set(device, batch);
-		onFlushTrace(() => {
+		require_backend.onFlushTrace(() => {
 			const b = activeBatch.get(device);
 			if (b && b.entries.length > 0) flushTracingBatch(device, b);
 			activeBatch.delete(device);
@@ -1682,14 +1682,14 @@ function acquireTracingSlot(device) {
 * timestamp queries.
 */
 function maybeAcquireTracingSlot(device) {
-	if (!isTracing()) return void 0;
+	if (!require_backend.isTracing()) return void 0;
 	return acquireTracingSlot(device);
 }
 /**
 * Record a tracing entry for a pipeline dispatch and schedule an auto-flush.
 */
 function recordTrace(device, slot, source, numPasses, wgslSource) {
-	const info = traceSourceInfo(source);
+	const info = require_backend.traceSourceInfo(source);
 	info.properties.push(["passes", `${numPasses}`]);
 	info.properties.push(["source", wgslSource]);
 	slot.batch.entries.push({
@@ -1728,7 +1728,7 @@ function flushTracingBatch(device, batch) {
 			const times = new BigInt64Array(batch.dst.getMappedRange());
 			const anchorGpuNs = times[entries[entries.length - 1].endIndex];
 			const anchorCpuMs = performance.now();
-			for (const entry of entries) emitTrace("webgpu", entry, anchorCpuMs + Number(times[entry.beginIndex] - anchorGpuNs) / 1e6, anchorCpuMs + Number(times[entry.endIndex] - anchorGpuNs) / 1e6);
+			for (const entry of entries) require_backend.emitTrace("webgpu", entry, anchorCpuMs + Number(times[entry.beginIndex] - anchorGpuNs) / 1e6, anchorCpuMs + Number(times[entry.endIndex] - anchorGpuNs) / 1e6);
 		} finally {
 			batch.dst.unmap();
 			batch.querySet.destroy();
@@ -1741,6 +1741,9 @@ function flushTracingBatch(device, batch) {
 //#region src/backend/webgpu.ts
 const MAX_REUSABLE_BUFFER_BYTES = 64 * 1024 * 1024;
 const MAX_REUSABLE_BUFFERS_PER_SIZE = 64;
+const MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE = 512;
+const SMALL_BUFFER_BYTES = 64 * 1024;
+const MAX_SMALL_POOL_BYTES = 64 * 1024 * 1024;
 const MAX_BATCH_OPERATIONS = 64;
 /** Implementation of `Backend` that uses WebGPU in browsers. */
 var WebGPUBackend = class {
@@ -1754,6 +1757,7 @@ var WebGPUBackend = class {
 	#cachedShaderMap = /* @__PURE__ */ new Map();
 	#reusableZsb;
 	#bufferPool = /* @__PURE__ */ new Map();
+	#smallPoolBytes = 0;
 	#batchDepth = 0;
 	#dispatchBatch = null;
 	#batchOperations = 0;
@@ -1779,7 +1783,7 @@ var WebGPUBackend = class {
 	}
 	constructor(device) {
 		this.device = device;
-		if (DEBUG >= 3 && device.adapterInfo) console.info("webgpu adapter:", device.adapterInfo.vendor, device.adapterInfo.architecture);
+		if (require_backend.DEBUG >= 3 && device.adapterInfo) console.info("webgpu adapter:", device.adapterInfo.vendor, device.adapterInfo.architecture);
 		this.maxArgs = this.device.limits.maxStorageBuffersPerShaderStage - 1;
 		this.pipelines = new ShaderPipelineCache(device);
 		this.syncReader = new SyncReader(device);
@@ -1816,12 +1820,12 @@ var WebGPUBackend = class {
 	}
 	incRef(slot) {
 		const buffer = this.buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		buffer.ref++;
 	}
 	decRef(slot) {
 		const buffer = this.buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		buffer.ref--;
 		if (buffer.ref === 0) {
 			this.buffers.delete(slot);
@@ -1856,7 +1860,7 @@ var WebGPUBackend = class {
 		return this.syncReader.read(buffer, start, count);
 	}
 	#cachedShader(kernel) {
-		const cacheKey = FpHash.hash(kernel);
+		const cacheKey = require_backend.FpHash.hash(kernel);
 		let result = this.#cachedShaderMap.get(cacheKey);
 		if (!result) {
 			result = pipelineSource(this.device, kernel);
@@ -1867,7 +1871,7 @@ var WebGPUBackend = class {
 	async prepareKernel(kernel) {
 		const shader = this.#cachedShader(kernel);
 		const pipeline = await this.pipelines.prepare(shader);
-		return new Executable(kernel, [{
+		return new require_backend.Executable(kernel, [{
 			...shader,
 			pipeline
 		}]);
@@ -1875,14 +1879,14 @@ var WebGPUBackend = class {
 	prepareKernelSync(kernel) {
 		const shader = this.#cachedShader(kernel);
 		const pipeline = this.pipelines.prepareSync(shader);
-		return new Executable(kernel, [{
+		return new require_backend.Executable(kernel, [{
 			...shader,
 			pipeline
 		}]);
 	}
 	async prepareRoutine(routine) {
 		const shaders = createRoutineShader(this.device, routine);
-		return new Executable(routine, await Promise.all(shaders.map(async (shader) => {
+		return new require_backend.Executable(routine, await Promise.all(shaders.map(async (shader) => {
 			const pipeline = await this.pipelines.prepare(shader);
 			return {
 				...shader,
@@ -1891,7 +1895,7 @@ var WebGPUBackend = class {
 		})));
 	}
 	prepareRoutineSync(routine) {
-		return new Executable(routine, createRoutineShader(this.device, routine).map((shader) => {
+		return new require_backend.Executable(routine, createRoutineShader(this.device, routine).map((shader) => {
 			const pipeline = this.pipelines.prepareSync(shader);
 			return {
 				...shader,
@@ -1902,7 +1906,7 @@ var WebGPUBackend = class {
 	dispatch(exe, inputs, outputs) {
 		const inputBuffers = inputs.map((slot) => this.#getBuffer(slot).buffer);
 		const outputBuffers = outputs.map((slot) => this.#getBuffer(slot).buffer);
-		if (this.#batchDepth && !isTracing()) {
+		if (this.#batchDepth && !require_backend.isTracing()) {
 			this.#dispatchBatch ??= {
 				encoder: this.device.createCommandEncoder(),
 				pass: null,
@@ -1917,7 +1921,7 @@ var WebGPUBackend = class {
 	}
 	#getBuffer(slot) {
 		const buffer = this.buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		return {
 			buffer: buffer.buffer,
 			size: buffer.size
@@ -1927,6 +1931,7 @@ var WebGPUBackend = class {
 		if (size > MAX_REUSABLE_BUFFER_BYTES) return this.#createBuffer(size);
 		const bucket = this.#bufferPool.get(size);
 		const buffer = bucket?.pop();
+		if (buffer && size <= SMALL_BUFFER_BYTES) this.#smallPoolBytes -= size;
 		if (bucket && bucket.length === 0) this.#bufferPool.delete(size);
 		return buffer ?? this.#createBuffer(size);
 	}
@@ -1936,15 +1941,14 @@ var WebGPUBackend = class {
 			return;
 		}
 		const bucket = this.#bufferPool.get(size);
-		if (!bucket) {
-			this.#bufferPool.set(size, [buffer]);
-			return;
-		}
-		if (bucket.length >= MAX_REUSABLE_BUFFERS_PER_SIZE) {
+		const limit = size <= SMALL_BUFFER_BYTES ? MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE : MAX_REUSABLE_BUFFERS_PER_SIZE;
+		if ((bucket?.length ?? 0) >= limit || size <= SMALL_BUFFER_BYTES && this.#smallPoolBytes + size > MAX_SMALL_POOL_BYTES) {
 			this.#retireBuffer(buffer);
 			return;
 		}
-		bucket.push(buffer);
+		if (bucket) bucket.push(buffer);
+		else this.#bufferPool.set(size, [buffer]);
+		if (size <= SMALL_BUFFER_BYTES) this.#smallPoolBytes += size;
 	}
 	#retireBuffer(buffer) {
 		if (this.#dispatchBatch) this.#dispatchBatch.retired.push(buffer);
@@ -1978,8 +1982,8 @@ var WebGPUBackend = class {
 function pipelineSource(device, kernel) {
 	const nullaryKernel = nullaryKernelSource(device, kernel);
 	if (nullaryKernel) return nullaryKernel;
-	const tune = tuneWebgpu(kernel);
-	if (DEBUG >= 3) console.info(`kernel.exp: ${kernel.exp}\ntune.exp: ${tune.exp}`);
+	const tune = require_backend.tuneWebgpu(kernel);
+	if (require_backend.DEBUG >= 3) console.info(`kernel.exp: ${kernel.exp}\ntune.exp: ${tune.exp}`);
 	const { nargs, reduction: re } = kernel;
 	const args = Array.from({ length: nargs }, (_, i) => `in${i}`);
 	const wb = new WgslBuilder();
@@ -2001,7 +2005,7 @@ function pipelineSource(device, kernel) {
 	const groupedReduction = re && groupCount > 1;
 	if (groupedReduction && tune.threadCount % groupCount !== 0) throw new Error("WebGPU grouped reduction has invalid thread count");
 	if (groupedReduction && groupCount > device.limits.maxComputeWorkgroupSizeX) throw new Error("WebGPU grouped reduction exceeds workgroup size limit");
-	const workgroupSize = groupedReduction ? groupCount : findPow2(tune.threadCount, 256);
+	const workgroupSize = groupedReduction ? groupCount : require_backend.findPow2(tune.threadCount, 256);
 	const gridSize = groupedReduction ? tune.threadCount / groupCount : Math.ceil(tune.threadCount / workgroupSize);
 	const [gridX, gridY] = calculateGrid(gridSize);
 	if (groupedReduction) {
@@ -2026,7 +2030,7 @@ function pipelineSource(device, kernel) {
 	const gen = new WgslExpCodegen(wb, args);
 	if (!re) {
 		gen.countReferences(tune.exp);
-		let rhs = strip1(gen.run(tune.exp));
+		let rhs = require_backend.strip1(gen.run(tune.exp));
 		if (resultTy !== dtypeToWgsl(tune.exp.dtype)) rhs = `${resultTy}(${rhs})`;
 		wb.emit(`result[gidx] = ${rhs};`);
 	} else {
@@ -2041,14 +2045,14 @@ function pipelineSource(device, kernel) {
 			exps.push([]);
 			for (let un = 0; un < unroll; un++) {
 				const exp = tune.exp.substitute({
-					upcast: AluExp.i32(up),
-					unroll: AluExp.i32(un)
+					upcast: require_backend.AluExp.i32(up),
+					unroll: require_backend.AluExp.i32(un)
 				});
 				exps[up].push(exp.simplify(cache));
 				gen.countReferences(exps[up][un]);
 			}
 		}
-		const items = exps.map((ar) => ar.map((x) => gen.run(x)).map(strip1));
+		const items = exps.map((ar) => ar.map((x) => gen.run(x)).map(require_backend.strip1));
 		for (let i = 0; i < upcast; i++) {
 			let rhs = items[i][0];
 			for (let j = 1; j < unroll; j++) if (re.op === "Add") rhs = `${rhs} + ${items[i][j]}`;
@@ -2078,12 +2082,12 @@ function pipelineSource(device, kernel) {
 		const outputIdxExps = [];
 		const fusionExps = [];
 		for (let i = 0; i < upcast; i++) {
-			const exp = tune.outputIdxExp.substitute({ upcast: AluExp.i32(i) });
+			const exp = tune.outputIdxExp.substitute({ upcast: require_backend.AluExp.i32(i) });
 			outputIdxExps.push(exp.simplify(cache));
 			gen.countReferences(outputIdxExps[i]);
 			fusionExps.push(tune.epilogue.substitute({
-				acc: AluExp.variable(re.dtype, acc[i]),
-				upcast: AluExp.i32(i)
+				acc: require_backend.AluExp.variable(re.dtype, acc[i]),
+				upcast: require_backend.AluExp.i32(i)
 			}).simplify(cache));
 			gen.countReferences(fusionExps[i]);
 		}
@@ -2092,8 +2096,8 @@ function pipelineSource(device, kernel) {
 			for (let i = 0; i < upcast; i++) wb.emit(`${acc[i]} = partial${i}[0u];`);
 		}
 		for (let i = 0; i < upcast; i++) {
-			const index = strip1(gen.run(outputIdxExps[i]));
-			let rhs = strip1(gen.run(fusionExps[i]));
+			const index = require_backend.strip1(gen.run(outputIdxExps[i]));
+			let rhs = require_backend.strip1(gen.run(fusionExps[i]));
 			if (resultTy !== dtypeToWgsl(fusionExps[i].dtype)) rhs = `${resultTy}(${rhs})`;
 			wb.emit(`result[${index}] = ${rhs};`);
 		}
@@ -2120,7 +2124,7 @@ function pipelineSubmit(device, exe, inputs, outputs, batch) {
 			}
 			for (const output of outputs) commandEncoder.clearBuffer(output);
 		}
-		const filteredPasses = shader.passes.filter(({ grid }) => prod(grid) > 0);
+		const filteredPasses = shader.passes.filter(({ grid }) => require_backend.prod(grid) > 0);
 		if (filteredPasses.length === 0) continue;
 		const slot = maybeAcquireTracingSlot(device);
 		const bindGroup = device.createBindGroup({
@@ -2209,7 +2213,7 @@ var ShaderPipelineCache = class {
 			const max = this.device.limits.maxStorageBuffersPerShaderStage;
 			throw new Error(`Too many buffers (${actual}) for WebGPU pipeline (max: ${max})`);
 		}
-		const bindGroupLayouts = [this.device.createBindGroupLayout({ entries: range(shader.numInputs + shader.numOutputs).map((i) => ({
+		const bindGroupLayouts = [this.device.createBindGroupLayout({ entries: require_backend.range(shader.numInputs + shader.numOutputs).map((i) => ({
 			binding: i,
 			visibility: GPUShaderStage.COMPUTE,
 			buffer: { type: i < shader.numInputs ? "read-only-storage" : "storage" }
@@ -2229,7 +2233,7 @@ var ShaderPipelineCache = class {
 		if (existingPipeline) return existingPipeline;
 		const existingPromise = this.inProgress.get(shader.code);
 		if (existingPromise) return await existingPromise;
-		if (DEBUG >= 2) console.info("=========== WebGPU shader ===========\n" + shader.code);
+		if (require_backend.DEBUG >= 2) console.info("=========== WebGPU shader ===========\n" + shader.code);
 		const shaderModule = this.device.createShaderModule({ code: shader.code });
 		const promise = (async () => {
 			this.device.pushErrorScope("validation");
@@ -2256,7 +2260,7 @@ var ShaderPipelineCache = class {
 	prepareSync(shader) {
 		const existingPipeline = this.cache.get(shader.code);
 		if (existingPipeline) return existingPipeline;
-		if (DEBUG >= 2) console.info("=========== WebGPU shader ===========\n" + shader.code);
+		if (require_backend.DEBUG >= 2) console.info("=========== WebGPU shader ===========\n" + shader.code);
 		const shaderModule = this.device.createShaderModule({ code: shader.code });
 		this.device.pushErrorScope("validation");
 		const pipeline = this.device.createComputePipeline({
@@ -2285,4 +2289,4 @@ async function compileError(shaderModule, scope, code) {
 	return message;
 }
 //#endregion
-export { WebGPUBackend };
+exports.WebGPUBackend = WebGPUBackend;

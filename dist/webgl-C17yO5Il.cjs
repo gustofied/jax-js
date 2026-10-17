@@ -1,4 +1,4 @@
-import { $ as range, F as isFloatDtype, L as DEBUG, T as AluGroup, g as tuneNullopt, i as UnsupportedRoutineError, it as strip1, n as SlotError, r as UnsupportedOpError, t as Executable } from "./backend-D74TsSsB.js";
+const require_backend = require("./backend-BBETgP83.cjs");
 //#region src/backend/webgl/builtins.ts
 const threefrySrc = `
 uvec2 threefry2x32(uvec2 key, uvec2 ctr) {
@@ -150,12 +150,12 @@ var WebGLBackend = class {
 	}
 	incRef(slot) {
 		const buffer = this.#buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		buffer.ref++;
 	}
 	decRef(slot) {
 		const buffer = this.#buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		buffer.ref--;
 		if (buffer.ref === 0) {
 			this.gl.deleteTexture(buffer.texture);
@@ -164,7 +164,7 @@ var WebGLBackend = class {
 	}
 	async read(slot, start, count) {
 		const buffer = this.#buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		const gl = this.gl;
 		if (start === void 0) start = 0;
 		if (count === void 0) count = buffer.size - start;
@@ -214,7 +214,7 @@ var WebGLBackend = class {
 	}
 	readSync(slot, start, count) {
 		const buffer = this.#buffers.get(slot);
-		if (!buffer) throw new SlotError(slot);
+		if (!buffer) throw new require_backend.SlotError(slot);
 		const gl = this.gl;
 		if (start === void 0) start = 0;
 		if (count === void 0) count = buffer.size - start;
@@ -233,16 +233,16 @@ var WebGLBackend = class {
 	prepareKernelSync(kernel) {
 		const shader = generateShader(kernel);
 		const cached = this.#programCache.get(shader.code);
-		if (cached) return new Executable(kernel, cached);
+		if (cached) return new require_backend.Executable(kernel, cached);
 		const dispatch = compileShader(this.gl, shader);
 		this.#programCache.set(shader.code, dispatch);
-		return new Executable(kernel, dispatch);
+		return new require_backend.Executable(kernel, dispatch);
 	}
 	prepareRoutine(routine) {
-		throw new UnsupportedRoutineError(routine.name, "webgl");
+		throw new require_backend.UnsupportedRoutineError(routine.name, "webgl");
 	}
 	prepareRoutineSync(routine) {
-		throw new UnsupportedRoutineError(routine.name, "webgl");
+		throw new require_backend.UnsupportedRoutineError(routine.name, "webgl");
 	}
 	dispatch(exe, inputs, outputs) {
 		const gl = this.gl;
@@ -251,7 +251,7 @@ var WebGLBackend = class {
 		if (inputs.length !== exe.data.numInputs) throw new Error(`Expected ${exe.data.numInputs} inputs, got ${inputs.length}`);
 		if (outputs.length !== 1) throw new Error(`Expected 1 output, got ${outputs.length}`);
 		const outputBuffer = this.#buffers.get(outputs[0]);
-		if (!outputBuffer) throw new SlotError(outputs[0]);
+		if (!outputBuffer) throw new require_backend.SlotError(outputs[0]);
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.#fbo);
 		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, outputBuffer.texture, 0);
 		const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
@@ -260,7 +260,7 @@ var WebGLBackend = class {
 		gl.useProgram(program);
 		for (let i = 0; i < inputs.length; i++) {
 			const inputBuffer = this.#buffers.get(inputs[i]);
-			if (!inputBuffer) throw new SlotError(inputs[i]);
+			if (!inputBuffer) throw new require_backend.SlotError(inputs[i]);
 			gl.activeTexture(gl.TEXTURE0 + i);
 			gl.bindTexture(gl.TEXTURE_2D, inputBuffer.texture);
 			if (inputLocations[i] !== null) gl.uniform1i(inputLocations[i], i);
@@ -283,8 +283,8 @@ var WebGLBackend = class {
 	}
 };
 function generateShader(kernel) {
-	const tune = tuneNullopt(kernel);
-	if (DEBUG >= 3) console.info(`webgl kernel.exp: ${kernel.exp}\ntune.exp: ${tune.exp}`);
+	const tune = require_backend.tuneNullopt(kernel);
+	if (require_backend.DEBUG >= 3) console.info(`webgl kernel.exp: ${kernel.exp}\ntune.exp: ${tune.exp}`);
 	const { nargs, reduction: re } = kernel;
 	const outputDtype = kernel.dtype;
 	const outputSize = computeTextureDimensions(Math.ceil(kernel.size / 4) || 1);
@@ -323,22 +323,22 @@ function generateShader(kernel) {
 	if (builtins.bitCount) emit(bitCountSrc);
 	if (builtins.threefry) emit(threefrySrc);
 	emit(`${resultType} compute(int gidx) {`, pushIndent, `${resultType} result = ${constToGlsl(outputDtype, 0)};`, `if (gidx < ${kernel.size}) {`, pushIndent);
-	if (!re) emit(`result = ${strip1(generateExpression(tune.exp, args, inputDtypes))};`);
+	if (!re) emit(`result = ${require_backend.strip1(generateExpression(tune.exp, args, inputDtypes))};`);
 	else {
 		emit(`${glslType(re.dtype)} acc = ${constToGlsl(re.dtype, re.identity)};`, `for (int ridx = 0; ridx < ${tune.size.reduce}; ridx++) {`, pushIndent);
 		const code = generateExpression(tune.exp, args, inputDtypes);
-		if (re.op === "Add") emit(`acc += ${strip1(code)};`);
-		else if (re.op === "Mul") emit(`acc *= ${strip1(code)};`);
-		else if (re.op === "Min") if (re.dtype !== "bool") emit(`acc = min(acc, ${strip1(code)});`);
+		if (re.op === "Add") emit(`acc += ${require_backend.strip1(code)};`);
+		else if (re.op === "Mul") emit(`acc *= ${require_backend.strip1(code)};`);
+		else if (re.op === "Min") if (re.dtype !== "bool") emit(`acc = min(acc, ${require_backend.strip1(code)});`);
 		else emit(`acc = acc && ${code};`);
-		else if (re.op === "Max") if (re.dtype !== "bool") emit(`acc = max(acc, ${strip1(code)});`);
+		else if (re.op === "Max") if (re.dtype !== "bool") emit(`acc = max(acc, ${require_backend.strip1(code)});`);
 		else emit(`acc = acc || ${code};`);
 		else throw new Error(`Unsupported reduction op: ${re.op}`);
 		emit(popIndent, "}");
 		emit(`result = ${generateExpression(tune.epilogue, args, inputDtypes)};`);
 	}
 	emit(popIndent, "}", "return result;", popIndent, "}\n");
-	emit("void main() {", pushIndent, "ivec2 fragCoord = ivec2(gl_FragCoord.xy);", `int texelIdx = fragCoord.y * ${outputSize.width} + fragCoord.x;`, `${resultType} result0 = compute(texelIdx * 4);`, `${resultType} result1 = compute(texelIdx * 4 + 1);`, `${resultType} result2 = compute(texelIdx * 4 + 2);`, `${resultType} result3 = compute(texelIdx * 4 + 3);`, `out0 = uvec4(${range(4).map((i) => toRGBA32UI(outputDtype, `result${i}`)).join(", ")});`);
+	emit("void main() {", pushIndent, "ivec2 fragCoord = ivec2(gl_FragCoord.xy);", `int texelIdx = fragCoord.y * ${outputSize.width} + fragCoord.x;`, `${resultType} result0 = compute(texelIdx * 4);`, `${resultType} result1 = compute(texelIdx * 4 + 1);`, `${resultType} result2 = compute(texelIdx * 4 + 2);`, `${resultType} result3 = compute(texelIdx * 4 + 3);`, `out0 = uvec4(${require_backend.range(4).map((i) => toRGBA32UI(outputDtype, `result${i}`)).join(", ")});`);
 	emit(popIndent, "}");
 	return {
 		code: shader.join("\n"),
@@ -368,7 +368,7 @@ const vec2 pos[3] = vec2[](vec2(-1.0,-1.0), vec2(3.0,-1.0), vec2(-1.0,3.0));
 void main() { gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0); }
 `;
 function compileShader(gl, shader) {
-	if (DEBUG >= 1) console.info("=========== WebGL shader ===========\n" + shader.code);
+	if (require_backend.DEBUG >= 1) console.info("=========== WebGL shader ===========\n" + shader.code);
 	const program = link(gl, vertexShaderSource, shader.code);
 	const inputLocations = [];
 	for (let i = 0; i < shader.numInputs; i++) inputLocations.push(gl.getUniformLocation(program, `in${i}`));
@@ -402,7 +402,7 @@ function generateLoadFunction(dtype) {
 	const funcName = `load_${dtype}`;
 	const returnType = glslType(dtype);
 	let conversion;
-	if (isFloatDtype(dtype)) conversion = "uintBitsToFloat(val)";
+	if (require_backend.isFloatDtype(dtype)) conversion = "uintBitsToFloat(val)";
 	else if (dtype === "int32") conversion = "int(val)";
 	else if (dtype === "uint32") conversion = "val";
 	else if (dtype === "bool") conversion = "val != 0u";
@@ -451,7 +451,7 @@ function generateExpression(exp, args, inputDtypes) {
 		if (expContext.has(e)) return expContext.get(e);
 		const { op, src, dtype, arg } = e;
 		let source = "";
-		if (AluGroup.Binary.has(op)) {
+		if (require_backend.AluGroup.Binary.has(op)) {
 			const a = gen(src[0]);
 			const b = gen(src[1]);
 			if (op === "Add") if (dtype === "bool") source = `(${a} || ${b})`;
@@ -459,9 +459,9 @@ function generateExpression(exp, args, inputDtypes) {
 			else if (op === "Sub") source = `(${a} - ${b})`;
 			else if (op === "Mul") if (dtype === "bool") source = `(${a} && ${b})`;
 			else source = `(${a} * ${b})`;
-			else if (op === "Idiv") if (isFloatDtype(dtype)) source = `trunc(${a} / ${b})`;
+			else if (op === "Idiv") if (require_backend.isFloatDtype(dtype)) source = `trunc(${a} / ${b})`;
 			else source = `(${a} / ${b})`;
-			else if (op === "Mod") if (isFloatDtype(dtype)) source = `(${a} - ${b} * trunc(${a} / ${b}))`;
+			else if (op === "Mod") if (require_backend.isFloatDtype(dtype)) source = `(${a} - ${b} * trunc(${a} / ${b}))`;
 			else source = `(${a} % ${b})`;
 			else if (op === "Min") if (dtype === "bool") source = `(${a} && ${b})`;
 			else source = `min(${a}, ${b})`;
@@ -473,43 +473,43 @@ function generateExpression(exp, args, inputDtypes) {
 				source = `(${a} ${infix} ${b})`;
 			} else if (op === "BitShift") if (arg === "shl") source = `(${a} << ${b})`;
 			else source = `(${a} >> ${b})`;
-		} else if (AluGroup.Compare.has(op)) {
+		} else if (require_backend.AluGroup.Compare.has(op)) {
 			const a = gen(src[0]);
 			const b = gen(src[1]);
 			if (op === "Cmplt") source = `(${a} < ${b})`;
-			else if (op === "Cmpne") if (isFloatDtype(src[0].dtype)) source = `(${a} != ${b} || isnan(${a}) || isnan(${b}))`;
+			else if (op === "Cmpne") if (require_backend.isFloatDtype(src[0].dtype)) source = `(${a} != ${b} || isnan(${a}) || isnan(${b}))`;
 			else source = `(${a} != ${b})`;
-		} else if (AluGroup.Unary.has(op)) {
+		} else if (require_backend.AluGroup.Unary.has(op)) {
 			const a = gen(src[0]);
-			if (op === "Sin") source = `sin(${strip1(a)})`;
-			else if (op === "Cos") source = `cos(${strip1(a)})`;
-			else if (op === "Asin") source = `asin(${strip1(a)})`;
-			else if (op === "Atan") source = `atan(${strip1(a)})`;
-			else if (op === "Exp") source = `exp(${strip1(a)})`;
-			else if (op === "Log") source = `log(${strip1(a)})`;
-			else if (op === "Erf") source = `erf(${strip1(a)})`;
-			else if (op === "Erfc") source = `erfc(${strip1(a)})`;
-			else if (op === "Sqrt") source = `sqrt(${strip1(a)})`;
-			else if (op === "Floor") source = `floor(${strip1(a)})`;
-			else if (op === "Ceil") source = `ceil(${strip1(a)})`;
+			if (op === "Sin") source = `sin(${require_backend.strip1(a)})`;
+			else if (op === "Cos") source = `cos(${require_backend.strip1(a)})`;
+			else if (op === "Asin") source = `asin(${require_backend.strip1(a)})`;
+			else if (op === "Atan") source = `atan(${require_backend.strip1(a)})`;
+			else if (op === "Exp") source = `exp(${require_backend.strip1(a)})`;
+			else if (op === "Log") source = `log(${require_backend.strip1(a)})`;
+			else if (op === "Erf") source = `erf(${require_backend.strip1(a)})`;
+			else if (op === "Erfc") source = `erfc(${require_backend.strip1(a)})`;
+			else if (op === "Sqrt") source = `sqrt(${require_backend.strip1(a)})`;
+			else if (op === "Floor") source = `floor(${require_backend.strip1(a)})`;
+			else if (op === "Ceil") source = `ceil(${require_backend.strip1(a)})`;
 			else if (op === "Reciprocal") source = `(1.0 / ${a})`;
-			else if (op === "Cast") source = `${glslType(dtype)}(${strip1(a)})`;
+			else if (op === "Cast") source = `${glslType(dtype)}(${require_backend.strip1(a)})`;
 			else if (op === "Bitcast") {
 				const dtype0 = src[0].dtype;
 				if (dtype === dtype0) source = a;
 				else if (dtype === "float32") {
-					if (dtype0 === "int32") source = `intBitsToFloat(${strip1(a)})`;
-					else if (dtype0 === "uint32") source = `uintBitsToFloat(${strip1(a)})`;
+					if (dtype0 === "int32") source = `intBitsToFloat(${require_backend.strip1(a)})`;
+					else if (dtype0 === "uint32") source = `uintBitsToFloat(${require_backend.strip1(a)})`;
 				} else if (dtype === "int32") {
-					if (dtype0 === "float32") source = `floatBitsToInt(${strip1(a)})`;
-					else if (dtype0 === "uint32") source = `int(${strip1(a)})`;
+					if (dtype0 === "float32") source = `floatBitsToInt(${require_backend.strip1(a)})`;
+					else if (dtype0 === "uint32") source = `int(${require_backend.strip1(a)})`;
 				} else if (dtype === "uint32") {
-					if (dtype0 === "float32") source = `floatBitsToUint(${strip1(a)})`;
-					else if (dtype0 === "int32") source = `uint(${strip1(a)})`;
+					if (dtype0 === "float32") source = `floatBitsToUint(${require_backend.strip1(a)})`;
+					else if (dtype0 === "int32") source = `uint(${require_backend.strip1(a)})`;
 				}
-			} else if (op === "BitCount") source = `bitCountFallback(${strip1(a)})`;
+			} else if (op === "BitCount") source = `bitCountFallback(${require_backend.strip1(a)})`;
 		} else if (op === "Threefry2x32") {
-			const [k0, k1, c0, c1] = src.map((x) => strip1(gen(x)));
+			const [k0, k1, c0, c1] = src.map((x) => require_backend.strip1(gen(x)));
 			const mode = arg;
 			const call = `threefry2x32(uvec2(${k0}, ${k1}), uvec2(${c0}, ${c1}))`;
 			if (mode === "xor") source = `(${call}.x ^ ${call}.y)`;
@@ -524,13 +524,13 @@ function generateExpression(exp, args, inputDtypes) {
 		else if (op === "GlobalIndex") {
 			const gid = arg[0];
 			const bufidx = gen(src[0]);
-			source = `load_${inputDtypes[gid]}(${args[gid]}, ${strip1(bufidx)})`;
+			source = `load_${inputDtypes[gid]}(${args[gid]}, ${require_backend.strip1(bufidx)})`;
 		}
-		if (!source) throw new UnsupportedOpError(op, dtype, "webgl", arg);
+		if (!source) throw new require_backend.UnsupportedOpError(op, dtype, "webgl", arg);
 		expContext.set(e, source);
 		return source;
 	};
 	return gen(exp);
 }
 //#endregion
-export { WebGLBackend };
+exports.WebGLBackend = WebGLBackend;

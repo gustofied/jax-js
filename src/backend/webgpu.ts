@@ -25,6 +25,9 @@ interface ShaderDispatch extends ShaderInfo {
 
 const MAX_REUSABLE_BUFFER_BYTES = 64 * 1024 * 1024;
 const MAX_REUSABLE_BUFFERS_PER_SIZE = 64;
+const MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE = 512;
+const SMALL_BUFFER_BYTES = 64 * 1024;
+const MAX_SMALL_POOL_BYTES = 64 * 1024 * 1024;
 // Bound encoding latency and let the GPU start while the next chunk is encoded.
 const MAX_BATCH_OPERATIONS = 64;
 
@@ -55,6 +58,7 @@ export class WebGPUBackend implements Backend {
   #cachedShaderMap = new Map<bigint, ShaderInfo>();
   #reusableZsb: GPUBuffer;
   #bufferPool = new Map<number, GPUBuffer[]>();
+  #smallPoolBytes = 0;
   #batchDepth = 0;
   #dispatchBatch: DispatchBatch | null = null;
   #batchOperations = 0;
@@ -285,6 +289,7 @@ export class WebGPUBackend implements Backend {
     if (size > MAX_REUSABLE_BUFFER_BYTES) return this.#createBuffer(size);
     const bucket = this.#bufferPool.get(size);
     const buffer = bucket?.pop();
+    if (buffer && size <= SMALL_BUFFER_BYTES) this.#smallPoolBytes -= size;
     if (bucket && bucket.length === 0) this.#bufferPool.delete(size);
     return buffer ?? this.#createBuffer(size);
   }
@@ -295,15 +300,23 @@ export class WebGPUBackend implements Backend {
       return;
     }
     const bucket = this.#bufferPool.get(size);
-    if (!bucket) {
-      this.#bufferPool.set(size, [buffer]);
-      return;
-    }
-    if (bucket.length >= MAX_REUSABLE_BUFFERS_PER_SIZE) {
+    // JIT graphs can contain hundreds of tiny intermediates of the same size.
+    // Retain more of those without expanding the limit for large tensors.
+    const limit =
+      size <= SMALL_BUFFER_BYTES
+        ? MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE
+        : MAX_REUSABLE_BUFFERS_PER_SIZE;
+    if (
+      (bucket?.length ?? 0) >= limit ||
+      (size <= SMALL_BUFFER_BYTES &&
+        this.#smallPoolBytes + size > MAX_SMALL_POOL_BYTES)
+    ) {
       this.#retireBuffer(buffer);
       return;
     }
-    bucket.push(buffer);
+    if (bucket) bucket.push(buffer);
+    else this.#bufferPool.set(size, [buffer]);
+    if (size <= SMALL_BUFFER_BYTES) this.#smallPoolBytes += size;
   }
 
   #retireBuffer(buffer: GPUBuffer): void {
