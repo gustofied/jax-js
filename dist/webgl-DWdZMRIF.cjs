@@ -1,4 +1,4 @@
-const require_backend = require("./backend-CJz_59nA.cjs");
+const require_backend = require("./backend-BpUpP6iU.cjs");
 //#region src/backend/webgl/builtins.ts
 const threefrySrc = `
 uvec2 threefry2x32(uvec2 key, uvec2 ctr) {

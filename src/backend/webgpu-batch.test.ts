@@ -151,6 +151,34 @@ test("retains the original pool limit for large buffers", () => {
   expect(events.filter((e) => e === "destroy")).toHaveLength(1);
 });
 
+test.each([128, 256, 512, 1024, 2048])(
+  "reuses a bounded family of %i KiB tiles",
+  (kib) => {
+    const { backend, events, execute } = setup();
+    const create = vi.spyOn(backend.device, "createBuffer");
+    const slots = Array.from({ length: 97 }, () => backend.malloc(kib * 1024));
+    backend.batch(() => {
+      execute(false, slots[96]);
+      for (const slot of slots) backend.decRef(slot);
+      expect(events).not.toContain("destroy");
+    });
+    expect(events).toEqual(["begin", "dispatch", "end", "submit", "destroy"]);
+    const allocations = create.mock.calls.length;
+    const reused = Array.from({ length: 96 }, () => backend.malloc(kib * 1024));
+    expect(create.mock.calls.length).toBe(allocations);
+    for (const slot of reused) backend.decRef(slot);
+  },
+);
+
+test("does not expand retention beyond the tile size range", () => {
+  const { backend, events } = setup();
+  const slots = Array.from({ length: 65 }, () =>
+    backend.malloc(4 * 1024 * 1024),
+  );
+  for (const slot of slots) backend.decRef(slot);
+  expect(events.filter((event) => event === "destroy")).toHaveLength(1);
+});
+
 test("ends the compute pass before clearing routine outputs", () => {
   const { backend, events, execute } = setup();
   backend.batch(() => {

@@ -28,6 +28,8 @@ const MAX_REUSABLE_BUFFERS_PER_SIZE = 64;
 const MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE = 512;
 const SMALL_BUFFER_BYTES = 64 * 1024;
 const MAX_SMALL_POOL_BYTES = 64 * 1024 * 1024;
+const MAX_TILE_BUFFER_BYTES = 2 * 1024 * 1024;
+const MAX_TILE_BUFFERS_PER_SIZE = 96;
 // Bound encoding latency and let the GPU start while the next chunk is encoded.
 const MAX_BATCH_OPERATIONS = 64;
 
@@ -302,10 +304,15 @@ export class WebGPUBackend implements Backend {
     const bucket = this.#bufferPool.get(size);
     // JIT graphs can contain hundreds of tiny intermediates of the same size.
     // Retain more of those without expanding the limit for large tensors.
+    // Also retain 96 buffers at each of the five power-of-two tile sizes from
+    // 128 KiB through 2 MiB. This adds at most 124 MiB of idle retention and
+    // avoids repeated allocation in deeper tiled reductions.
     const limit =
       size <= SMALL_BUFFER_BYTES
         ? MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE
-        : MAX_REUSABLE_BUFFERS_PER_SIZE;
+        : size <= MAX_TILE_BUFFER_BYTES && (size & (size - 1)) === 0
+          ? MAX_TILE_BUFFERS_PER_SIZE
+          : MAX_REUSABLE_BUFFERS_PER_SIZE;
     if (
       (bucket?.length ?? 0) >= limit ||
       (size <= SMALL_BUFFER_BYTES &&
@@ -642,7 +649,8 @@ function pipelineSubmit(
 ) {
   const { data: pipelines, source } = exe;
   const commandEncoder = batch?.encoder ?? device.createCommandEncoder();
-  for (const { pipeline, ...shader } of pipelines) {
+  for (const shader of pipelines) {
+    const { pipeline } = shader;
     if (
       inputs.length !== shader.numInputs ||
       outputs.length !== shader.numOutputs
