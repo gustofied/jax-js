@@ -1,4 +1,4 @@
-const require_backend = require("./backend-BpUpP6iU.cjs");
+const require_backend = require("./backend-Bclm3E4U.cjs");
 //#region src/backend/webgpu/builtins.ts
 const threefrySrc = `
 fn threefry2x32(key: vec2<u32>, ctr: vec2<u32>) -> vec2<u32> {
@@ -1740,12 +1740,13 @@ function flushTracingBatch(device, batch) {
 //#endregion
 //#region src/backend/webgpu.ts
 const MAX_REUSABLE_BUFFER_BYTES = 64 * 1024 * 1024;
+const MAX_POOL_BYTES = 512 * 1024 * 1024;
 const MAX_REUSABLE_BUFFERS_PER_SIZE = 64;
 const MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE = 512;
 const SMALL_BUFFER_BYTES = 64 * 1024;
 const MAX_SMALL_POOL_BYTES = 64 * 1024 * 1024;
 const MAX_TILE_BUFFER_BYTES = 2 * 1024 * 1024;
-const MAX_TILE_BUFFERS_PER_SIZE = 96;
+const MAX_TILE_BUFFERS_PER_SIZE = 128;
 const MAX_BATCH_OPERATIONS = 64;
 /** Implementation of `Backend` that uses WebGPU in browsers. */
 var WebGPUBackend = class {
@@ -1759,6 +1760,7 @@ var WebGPUBackend = class {
 	#cachedShaderMap = /* @__PURE__ */ new Map();
 	#reusableZsb;
 	#bufferPool = /* @__PURE__ */ new Map();
+	#poolBytes = 0;
 	#smallPoolBytes = 0;
 	#batchDepth = 0;
 	#dispatchBatch = null;
@@ -1933,6 +1935,7 @@ var WebGPUBackend = class {
 		if (size > MAX_REUSABLE_BUFFER_BYTES) return this.#createBuffer(size);
 		const bucket = this.#bufferPool.get(size);
 		const buffer = bucket?.pop();
+		if (buffer) this.#poolBytes -= size;
 		if (buffer && size <= SMALL_BUFFER_BYTES) this.#smallPoolBytes -= size;
 		if (bucket && bucket.length === 0) this.#bufferPool.delete(size);
 		return buffer ?? this.#createBuffer(size);
@@ -1942,14 +1945,26 @@ var WebGPUBackend = class {
 			this.#retireBuffer(buffer);
 			return;
 		}
-		const bucket = this.#bufferPool.get(size);
-		const limit = size <= SMALL_BUFFER_BYTES ? MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE : size <= MAX_TILE_BUFFER_BYTES && (size & size - 1) === 0 ? MAX_TILE_BUFFERS_PER_SIZE : MAX_REUSABLE_BUFFERS_PER_SIZE;
+		let bucket = this.#bufferPool.get(size);
+		const limit = size <= SMALL_BUFFER_BYTES ? MAX_REUSABLE_SMALL_BUFFERS_PER_SIZE : size <= MAX_TILE_BUFFER_BYTES ? MAX_TILE_BUFFERS_PER_SIZE : MAX_REUSABLE_BUFFERS_PER_SIZE;
 		if ((bucket?.length ?? 0) >= limit || size <= SMALL_BUFFER_BYTES && this.#smallPoolBytes + size > MAX_SMALL_POOL_BYTES) {
 			this.#retireBuffer(buffer);
 			return;
 		}
-		if (bucket) bucket.push(buffer);
-		else this.#bufferPool.set(size, [buffer]);
+		while (this.#poolBytes + size > MAX_POOL_BYTES) {
+			const [oldSize, oldBuffers] = this.#bufferPool.entries().next().value;
+			this.#retireBuffer(oldBuffers.pop());
+			this.#poolBytes -= oldSize;
+			if (oldSize <= SMALL_BUFFER_BYTES) this.#smallPoolBytes -= oldSize;
+			if (oldBuffers.length === 0) this.#bufferPool.delete(oldSize);
+		}
+		bucket = this.#bufferPool.get(size);
+		if (bucket) {
+			bucket.push(buffer);
+			this.#bufferPool.delete(size);
+		}
+		this.#bufferPool.set(size, bucket ?? [buffer]);
+		this.#poolBytes += size;
 		if (size <= SMALL_BUFFER_BYTES) this.#smallPoolBytes += size;
 	}
 	#retireBuffer(buffer) {

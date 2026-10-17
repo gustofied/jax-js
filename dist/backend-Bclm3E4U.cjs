@@ -6003,7 +6003,7 @@ async function createBackend(device) {
 		if (!navigator.gpu) return null;
 		const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
 		if (!adapter) return null;
-		const { WebGPUBackend } = await import("./webgpu-gZ0cMb2z.js");
+		const { WebGPUBackend } = await Promise.resolve().then(() => require("./webgpu-_N0PJu-r.cjs"));
 		const importantLimits = [
 			"maxBufferSize",
 			"maxComputeInvocationsPerWorkgroup",
@@ -6042,7 +6042,7 @@ async function createBackend(device) {
 			failIfMajorPerformanceCaveat: true
 		});
 		if (!gl) return null;
-		const { WebGLBackend } = await import("./webgl-DrvTZitz.js");
+		const { WebGLBackend } = await Promise.resolve().then(() => require("./webgl-vL63OXeA.cjs"));
 		return new WebGLBackend(gl);
 	} else throw new Error(`Backend not found: ${device}`);
 }
@@ -6088,4 +6088,381 @@ function getWebGPUDevice() {
 	return backend.device;
 }
 //#endregion
-export { range as $, accessorAluExp as A, checkAxis as B, ScatterOp as C, DType as D, AluVar as E, isFloatDtype as F, generalBroadcast as G, checkSquare as H, promoteTypes as I, isPermutation as J, invertPermutation as K, DEBUG as L, byteWidth as M, dtypedArray as N, Kernel as O, dtypedJsArray as P, prod as Q, FpHash as R, Routines as S, AluGroup as T, deepEqual as U, checkInts as V, findPow2 as W, normalizeAxis as X, mapSetUnion as Y, partitionList as Z, tuneWebgpu as _, defaultDevice as a, toposort as at, unravelAlu as b, getWebGPUDevice as c, zipn as ct, isTracing as d, recursiveFlatten as et, onFlushTrace as f, tuneNullopt as g, traceSourceInfo as h, UnsupportedRoutineError as i, strip1 as it, accessorGlobal as j, Reduction as k, init as l, PPrint as lt, stopTrace as m, SlotError as n, runWithCache as nt, devices as o, unzip2 as ot, startTrace as p, isNumberPair as q, UnsupportedOpError as r, setDebug as rt, getBackend as s, zip as st, Executable as t, rep as tt, emitTrace as u, ShapeTracker as v, AluExp as w, Routine as x, View as y, assertNonNull as z };
+Object.defineProperty(exports, "AluExp", {
+	enumerable: true,
+	get: function() {
+		return AluExp;
+	}
+});
+Object.defineProperty(exports, "AluGroup", {
+	enumerable: true,
+	get: function() {
+		return AluGroup;
+	}
+});
+Object.defineProperty(exports, "AluVar", {
+	enumerable: true,
+	get: function() {
+		return AluVar;
+	}
+});
+Object.defineProperty(exports, "DEBUG", {
+	enumerable: true,
+	get: function() {
+		return DEBUG;
+	}
+});
+Object.defineProperty(exports, "DType", {
+	enumerable: true,
+	get: function() {
+		return DType;
+	}
+});
+Object.defineProperty(exports, "Executable", {
+	enumerable: true,
+	get: function() {
+		return Executable;
+	}
+});
+Object.defineProperty(exports, "FpHash", {
+	enumerable: true,
+	get: function() {
+		return FpHash;
+	}
+});
+Object.defineProperty(exports, "Kernel", {
+	enumerable: true,
+	get: function() {
+		return Kernel;
+	}
+});
+Object.defineProperty(exports, "PPrint", {
+	enumerable: true,
+	get: function() {
+		return PPrint;
+	}
+});
+Object.defineProperty(exports, "Reduction", {
+	enumerable: true,
+	get: function() {
+		return Reduction;
+	}
+});
+Object.defineProperty(exports, "Routine", {
+	enumerable: true,
+	get: function() {
+		return Routine;
+	}
+});
+Object.defineProperty(exports, "Routines", {
+	enumerable: true,
+	get: function() {
+		return Routines;
+	}
+});
+Object.defineProperty(exports, "ScatterOp", {
+	enumerable: true,
+	get: function() {
+		return ScatterOp;
+	}
+});
+Object.defineProperty(exports, "ShapeTracker", {
+	enumerable: true,
+	get: function() {
+		return ShapeTracker;
+	}
+});
+Object.defineProperty(exports, "SlotError", {
+	enumerable: true,
+	get: function() {
+		return SlotError;
+	}
+});
+Object.defineProperty(exports, "UnsupportedOpError", {
+	enumerable: true,
+	get: function() {
+		return UnsupportedOpError;
+	}
+});
+Object.defineProperty(exports, "UnsupportedRoutineError", {
+	enumerable: true,
+	get: function() {
+		return UnsupportedRoutineError;
+	}
+});
+Object.defineProperty(exports, "View", {
+	enumerable: true,
+	get: function() {
+		return View;
+	}
+});
+Object.defineProperty(exports, "accessorAluExp", {
+	enumerable: true,
+	get: function() {
+		return accessorAluExp;
+	}
+});
+Object.defineProperty(exports, "accessorGlobal", {
+	enumerable: true,
+	get: function() {
+		return accessorGlobal;
+	}
+});
+Object.defineProperty(exports, "assertNonNull", {
+	enumerable: true,
+	get: function() {
+		return assertNonNull;
+	}
+});
+Object.defineProperty(exports, "byteWidth", {
+	enumerable: true,
+	get: function() {
+		return byteWidth;
+	}
+});
+Object.defineProperty(exports, "checkAxis", {
+	enumerable: true,
+	get: function() {
+		return checkAxis;
+	}
+});
+Object.defineProperty(exports, "checkInts", {
+	enumerable: true,
+	get: function() {
+		return checkInts;
+	}
+});
+Object.defineProperty(exports, "checkSquare", {
+	enumerable: true,
+	get: function() {
+		return checkSquare;
+	}
+});
+Object.defineProperty(exports, "deepEqual", {
+	enumerable: true,
+	get: function() {
+		return deepEqual;
+	}
+});
+Object.defineProperty(exports, "defaultDevice", {
+	enumerable: true,
+	get: function() {
+		return defaultDevice;
+	}
+});
+Object.defineProperty(exports, "devices", {
+	enumerable: true,
+	get: function() {
+		return devices;
+	}
+});
+Object.defineProperty(exports, "dtypedArray", {
+	enumerable: true,
+	get: function() {
+		return dtypedArray;
+	}
+});
+Object.defineProperty(exports, "dtypedJsArray", {
+	enumerable: true,
+	get: function() {
+		return dtypedJsArray;
+	}
+});
+Object.defineProperty(exports, "emitTrace", {
+	enumerable: true,
+	get: function() {
+		return emitTrace;
+	}
+});
+Object.defineProperty(exports, "findPow2", {
+	enumerable: true,
+	get: function() {
+		return findPow2;
+	}
+});
+Object.defineProperty(exports, "generalBroadcast", {
+	enumerable: true,
+	get: function() {
+		return generalBroadcast;
+	}
+});
+Object.defineProperty(exports, "getBackend", {
+	enumerable: true,
+	get: function() {
+		return getBackend;
+	}
+});
+Object.defineProperty(exports, "getWebGPUDevice", {
+	enumerable: true,
+	get: function() {
+		return getWebGPUDevice;
+	}
+});
+Object.defineProperty(exports, "init", {
+	enumerable: true,
+	get: function() {
+		return init;
+	}
+});
+Object.defineProperty(exports, "invertPermutation", {
+	enumerable: true,
+	get: function() {
+		return invertPermutation;
+	}
+});
+Object.defineProperty(exports, "isFloatDtype", {
+	enumerable: true,
+	get: function() {
+		return isFloatDtype;
+	}
+});
+Object.defineProperty(exports, "isNumberPair", {
+	enumerable: true,
+	get: function() {
+		return isNumberPair;
+	}
+});
+Object.defineProperty(exports, "isPermutation", {
+	enumerable: true,
+	get: function() {
+		return isPermutation;
+	}
+});
+Object.defineProperty(exports, "isTracing", {
+	enumerable: true,
+	get: function() {
+		return isTracing;
+	}
+});
+Object.defineProperty(exports, "mapSetUnion", {
+	enumerable: true,
+	get: function() {
+		return mapSetUnion;
+	}
+});
+Object.defineProperty(exports, "normalizeAxis", {
+	enumerable: true,
+	get: function() {
+		return normalizeAxis;
+	}
+});
+Object.defineProperty(exports, "onFlushTrace", {
+	enumerable: true,
+	get: function() {
+		return onFlushTrace;
+	}
+});
+Object.defineProperty(exports, "partitionList", {
+	enumerable: true,
+	get: function() {
+		return partitionList;
+	}
+});
+Object.defineProperty(exports, "prod", {
+	enumerable: true,
+	get: function() {
+		return prod;
+	}
+});
+Object.defineProperty(exports, "promoteTypes", {
+	enumerable: true,
+	get: function() {
+		return promoteTypes;
+	}
+});
+Object.defineProperty(exports, "range", {
+	enumerable: true,
+	get: function() {
+		return range;
+	}
+});
+Object.defineProperty(exports, "recursiveFlatten", {
+	enumerable: true,
+	get: function() {
+		return recursiveFlatten;
+	}
+});
+Object.defineProperty(exports, "rep", {
+	enumerable: true,
+	get: function() {
+		return rep;
+	}
+});
+Object.defineProperty(exports, "runWithCache", {
+	enumerable: true,
+	get: function() {
+		return runWithCache;
+	}
+});
+Object.defineProperty(exports, "setDebug", {
+	enumerable: true,
+	get: function() {
+		return setDebug;
+	}
+});
+Object.defineProperty(exports, "startTrace", {
+	enumerable: true,
+	get: function() {
+		return startTrace;
+	}
+});
+Object.defineProperty(exports, "stopTrace", {
+	enumerable: true,
+	get: function() {
+		return stopTrace;
+	}
+});
+Object.defineProperty(exports, "strip1", {
+	enumerable: true,
+	get: function() {
+		return strip1;
+	}
+});
+Object.defineProperty(exports, "toposort", {
+	enumerable: true,
+	get: function() {
+		return toposort;
+	}
+});
+Object.defineProperty(exports, "traceSourceInfo", {
+	enumerable: true,
+	get: function() {
+		return traceSourceInfo;
+	}
+});
+Object.defineProperty(exports, "tuneNullopt", {
+	enumerable: true,
+	get: function() {
+		return tuneNullopt;
+	}
+});
+Object.defineProperty(exports, "tuneWebgpu", {
+	enumerable: true,
+	get: function() {
+		return tuneWebgpu;
+	}
+});
+Object.defineProperty(exports, "unravelAlu", {
+	enumerable: true,
+	get: function() {
+		return unravelAlu;
+	}
+});
+Object.defineProperty(exports, "unzip2", {
+	enumerable: true,
+	get: function() {
+		return unzip2;
+	}
+});
+Object.defineProperty(exports, "zip", {
+	enumerable: true,
+	get: function() {
+		return zip;
+	}
+});
+Object.defineProperty(exports, "zipn", {
+	enumerable: true,
+	get: function() {
+		return zipn;
+	}
+});

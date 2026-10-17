@@ -146,29 +146,73 @@ test("bounds total small-buffer retention and releases budget on reuse", () => {
 
 test("retains the original pool limit for large buffers", () => {
   const { backend, events } = setup();
-  const slots = Array.from({ length: 65 }, () => backend.malloc(64 * 1024 + 4));
+  const slots = Array.from({ length: 65 }, () =>
+    backend.malloc(2 * 1024 * 1024 + 4),
+  );
   for (const slot of slots) backend.decRef(slot);
   expect(events.filter((e) => e === "destroy")).toHaveLength(1);
 });
 
-test.each([128, 256, 512, 1024, 2048])(
+test.each([128, 256, 512, 1024, 1025, 2048])(
   "reuses a bounded family of %i KiB tiles",
   (kib) => {
     const { backend, events, execute } = setup();
     const create = vi.spyOn(backend.device, "createBuffer");
-    const slots = Array.from({ length: 97 }, () => backend.malloc(kib * 1024));
+    const slots = Array.from({ length: 129 }, () => backend.malloc(kib * 1024));
     backend.batch(() => {
-      execute(false, slots[96]);
+      execute(false, slots[128]);
       for (const slot of slots) backend.decRef(slot);
       expect(events).not.toContain("destroy");
     });
     expect(events).toEqual(["begin", "dispatch", "end", "submit", "destroy"]);
     const allocations = create.mock.calls.length;
-    const reused = Array.from({ length: 96 }, () => backend.malloc(kib * 1024));
+    const reused = Array.from({ length: 128 }, () =>
+      backend.malloc(kib * 1024),
+    );
     expect(create.mock.calls.length).toBe(allocations);
     for (const slot of reused) backend.decRef(slot);
   },
 );
+
+test("bounds aggregate retention and evicts only after submission", () => {
+  const { backend, events, execute } = setup();
+  const create = vi.spyOn(backend.device, "createBuffer");
+  const size = 64 * 1024 * 1024;
+  const slots = Array.from({ length: 9 }, () => backend.malloc(size));
+  backend.batch(() => {
+    execute(false, slots[7]);
+    for (const slot of slots) backend.decRef(slot);
+    expect(events).not.toContain("destroy");
+  });
+  expect(events).toEqual(["begin", "dispatch", "end", "submit", "destroy"]);
+  const allocations = create.mock.calls.length;
+  const reused = Array.from({ length: 8 }, () => backend.malloc(size));
+  expect(create.mock.calls.length).toBe(allocations);
+  for (const slot of reused) backend.decRef(slot);
+  expect(events.filter((event) => event === "destroy")).toHaveLength(1);
+});
+
+test("recently released sizes survive aggregate eviction", () => {
+  const { backend } = setup();
+  const size = 64 * 1024 * 1024;
+  const oldest = backend.malloc(size - 4);
+  const recent = backend.malloc(size - 8);
+  const oldBuffer = backend.buffers.get(oldest)!.buffer;
+  const recentBuffer = backend.buffers.get(recent)!.buffer;
+  const oldDestroy = vi.spyOn(oldBuffer, "destroy");
+  const recentDestroy = vi.spyOn(recentBuffer, "destroy");
+  backend.decRef(recent);
+  backend.decRef(oldest);
+  // Reusing and releasing refreshes recency, without consuming extra budget.
+  backend.decRef(backend.malloc(size - 8));
+  const slots = Array.from({ length: 7 }, () => backend.malloc(size));
+  for (const slot of slots) backend.decRef(slot);
+  expect(oldDestroy).toHaveBeenCalledOnce();
+  expect(recentDestroy).not.toHaveBeenCalled();
+  const reused = backend.malloc(size - 8);
+  expect(backend.buffers.get(reused)!.buffer).toBe(recentBuffer);
+  backend.decRef(reused);
+});
 
 test("does not expand retention beyond the tile size range", () => {
   const { backend, events } = setup();
