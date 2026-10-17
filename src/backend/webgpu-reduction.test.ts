@@ -79,6 +79,23 @@ test("does not use subgroup addition for short or max reductions", () => {
   expect(source(true, 37, 1280, AluOp.Max)).not.toContain("subgroup");
 });
 
+test.each([128, 256, 384])(
+  "parallelizes repeated medium reductions of %i values",
+  (columns) => {
+    const code = source(true, 65, columns);
+    expect(code).toContain("@workgroup_size(32)");
+    expect(code).toContain("subgroupAdd(acc0)");
+    expect(source(false, 65, columns)).toContain("partial0[lid.x]");
+  },
+);
+
+test("keeps small-output medium reductions and short rows serial", () => {
+  expect(source(true, 64, 128)).not.toContain("subgroup");
+  expect(source(true, 512, 64)).not.toContain("subgroup");
+  expect(source(true, 65, 129)).not.toContain("subgroup");
+  expect(source(true, 65, 128, AluOp.Max)).not.toContain("subgroup");
+});
+
 test.each([false, true])(
   "compiles packed reductions with subgroups %s",
   (subgroups) => {

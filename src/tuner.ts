@@ -335,7 +335,10 @@ export function tuneWebgpu(kernel: Kernel): TuneResult {
     reduction.op === AluOp.Add &&
     reduction.dtype === DType.Float32 &&
     groupCandidateHasContiguousInputs &&
-    prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512
+    // Many independent medium reductions (e.g. attention scores) also benefit
+    // from cooperative lanes. Keep small-output short reductions serial.
+    (prod(dim.st.shape.slice(dim.reduce, dim.unroll)) >= 512 ||
+      (reduction.size >= 128 && kernel.size > 64))
   ) {
     const axis = dim.reduce;
     // Keep adjacent packed values in the same invocation before distributing

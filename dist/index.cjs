@@ -11,7 +11,7 @@ var __exportAll = (all, no_symbols) => {
 	return target;
 };
 //#endregion
-const require_backend = require("./backend-Bclm3E4U.cjs");
+const require_backend = require("./backend-BCG_sNTa.cjs");
 //#region src/frontend/convolution.ts
 /**
 * Check that the shapes and parameters passed to convolution are valid.

@@ -1,4 +1,4 @@
-const require_backend = require("./backend-Bclm3E4U.cjs");
+const require_backend = require("./backend-BCG_sNTa.cjs");
 //#region src/backend/webgpu/builtins.ts
 const threefrySrc = `
 fn threefry2x32(key: vec2<u32>, ctr: vec2<u32>) -> vec2<u32> {
